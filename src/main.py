@@ -1,13 +1,13 @@
 import csv
 import difflib
 import re
+import json
 from os import path
 from time import sleep
 from datetime import datetime
 from copy import deepcopy
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
-
 
 columns = {
 	'#REFN': 'reference',
@@ -36,7 +36,7 @@ columns = {
 	'SOUR.2': 'source_2',
 
 	'_UID.2': 'id_2',
-	'_UID.3': 'id_3',
+	# '_UID.3': 'id_3',
 	'OCCU.NOTE': 'occupation_note',
 
 	'MARR.SPOU.NAME.1': 'spouse_1_name',
@@ -235,10 +235,9 @@ def geocode(geocoder, elem):
   return location
 
 
-def generate_location_lookup():
+def generate_location_lookup(cache):
   """Grab the geocode of the first non-null place element of the given record and add it
   to the record and cache"""
-  cache = {}
   coder = Nominatim(timeout=20, user_agent='ancestry-geocoder')
   place_columns = [
     'birth_place',
@@ -252,13 +251,22 @@ def generate_location_lookup():
   def lookup(elem):
     place = coalesce(*[elem.get(x) for x in place_columns])
     location = cache.get(place, None)
+    latitude, longitude = None, None
 
-    if location is None:
+    if location:
+      latitude = location['latitude']
+      longitude = location['longitude']
+
+    else:
       location = geocode(coder, place)
-      cache[place] = location
 
-    elem['latitude'] = location.latitude if location else None
-    elem['longitude'] = location.longitude if location else None
+      if location:
+        latitude = location.latitude
+        longitude = location.longitude
+        cache[place] = {'latitude': latitude, 'longitude': longitude, 'location': location.address}
+
+    elem['latitude'] = latitude
+    elem['longitude'] = longitude
 
     return elem
 
@@ -290,7 +298,9 @@ if __name__ == '__main__':
   cleaned = apply_fn(input_data, clean_data)
   name_map = generate_name_map(cleaned)
   result = apply_fn(cleaned, norm_name, name_map)
-  lookup_fn = generate_location_lookup()
+  places_map = json.load(open('./places_map.json', 'r'))
+  lookup_fn = generate_location_lookup(places_map)
   geocoded = apply_fn(result, lookup_fn)
 
-	write_data(geocoded)
+  json.dump(places_map, open('./places_map.json', 'w'), indent=2)
+  write_data(geocoded)
