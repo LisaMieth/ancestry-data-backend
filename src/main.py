@@ -5,7 +5,7 @@ import json
 from os import path
 from time import sleep
 from datetime import datetime
-from copy import deepcopy
+from argparse import ArgumentParser
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
 
@@ -104,7 +104,7 @@ def read_data(file_name):
 
 
 def generate_name_map(data):
-  """Create a mapping of names and most recent dates."""
+  """Creates a mapping of names and most recent dates."""
   # Build last name reference list containing last name and birth/death/marriage date
   # to grab latest last name
   cache = {}
@@ -130,13 +130,13 @@ def generate_name_map(data):
 
 
 def name_lookup(elem, possibilities):
-  """Returns the closest matches to the element"""
-  return difflib.get_close_matches(elem, possibilities, n=10, cutoff=0.8)
+  """Returns the closest matches to the element."""
+  return difflib.get_close_matches(elem, possibilities, n=10, cutoff=0.7)
 
 
 def norm_name(elem, mapping):
-  """Grab the latest version of a name."""
-  cache = deepcopy(elem)
+  """Grabs the latest version of a name."""
+  cache = elem.copy()
   possibilities = name_lookup(elem['last_name'], mapping.keys())
   dates = [mapping[x] for x in possibilities]
   sorted_names = [x for _,x in sorted(zip(dates, possibilities))]
@@ -147,13 +147,16 @@ def norm_name(elem, mapping):
 
 
 def clean_date(value):
-  """Cast date strings to formatted datetime values for comparison"""
+  """Casts date strings to formatted datetime values for comparison."""
   if not value or value == '' or value == '?':
     return None
 
   # Replace inexact values with something more precise
   if 'um' in value:
     value = value.replace('um ', '01.01.')
+
+  if 'ca' in value:
+    value = value.replace('ca ', '01.01.')
 
   if 'vor' in value:
     value = value.replace('vor ', '')
@@ -175,7 +178,7 @@ def clean_date(value):
 
 
 def clean_data(elem):
-  # Shallow copy is enoug?
+  """Cleans date and last_name fields."""
   cache = elem.copy()
 
   # Clean date values
@@ -206,20 +209,30 @@ def coalesce(*values):
   return None
 
 
+def generate_possibilities(value):
+  """Returns list of possible location values from given input value."""
+  possibilities = [value]
+
+  # A value can contain a broader parent location - Poigham (Karpfham)
+  if '(' in value:
+    outside = re.findall(r"(.*?)\(.*\)+", value)
+    inside = re.findall(r'\((.*?)\)', value)
+
+    possibilities.append(outside[0].strip())
+    possibilities.append(inside[0].strip())
+
+  return possibilities
+
+
 def geocode(geocoder, elem):
+  """Attempts to find geocode for the given value or its possibilities."""
   if elem == '' or elem is None:
     return None
 
   # Lookup entire location as well as possible separated values i.e.
   # elem before () and inside ()
-  possibilities = [elem]
+  possibilities = generate_possibilities(elem)
   location = None
-
-  if '(' in elem:
-    outside = re.findall(r"(.*?)\(.*\)+", elem)
-    inside = re.findall(r'\((.*?)\)', elem)
-    possibilities.append(outside[0].strip())
-    possibilities.append(inside[0].strip())
 
   for item in possibilities:
     if location:
@@ -235,10 +248,8 @@ def geocode(geocoder, elem):
   return location
 
 
-def generate_location_lookup(cache):
-  """Grab the geocode of the first non-null place element of the given record and add it
-  to the record and cache"""
-  coder = Nominatim(timeout=20, user_agent='ancestry-geocoder')
+def generate_location_lookup(geocoder, cache=None):
+  """Creates a geocode lookup function."""
   place_columns = [
     'birth_place',
     'death_place',
@@ -248,7 +259,12 @@ def generate_location_lookup(cache):
     'location_marriage_4',
   ]
 
+  if cache is None:
+    cache = {}
+
   def lookup(elem):
+    """Grabs the geocode of the first non-null place element of the given record and adds it
+    to the record and cache."""
     place = coalesce(*[elem.get(x) for x in place_columns])
     location = cache.get(place, None)
     latitude, longitude = None, None
@@ -258,7 +274,7 @@ def generate_location_lookup(cache):
       longitude = location['longitude']
 
     else:
-      location = geocode(coder, place)
+      location = geocode(geocoder, place)
 
       if location:
         latitude = location.latitude
@@ -273,12 +289,47 @@ def generate_location_lookup(cache):
   return lookup
 
 
-def apply_fn(l, func, *args):
+def remove_sensitive_person(elem):
+  """Filters out any person born after 1945."""
+  date_value = elem.get('date_birth', None)
+
+  if date_value and date_value > datetime.strptime('01.01.1945', '%d.%m.%Y'):
+    return None
+
+  return elem
+
+
+def remove_sensitive_dates(elem):
+  """Removes any date that is > 1945."""
+  cache = elem.copy()
+
+  for item in [
+    'date_birth',
+    'date_death',
+    'date_marriage_1',
+    'date_marriage_2',
+    'date_marriage_3',
+    'date_marriage_4',
+  ]:
+    value = elem.get(item, None)
+    if value and value > datetime.strptime('01.01.1945', '%d.%m.%Y'):
+      cache[item] = None
+
+  return cache
+
+
+def apply_map(l, func, *args):
+  """Maps over list by applying given function with any passed arguments"""
   return [func(x, *args) for x in l]
 
 
+def apply_filter(l, func):
+  return list(filter(func, l))
+
+
 def write_data(data):
-  f = open('output.csv', 'w')
+  filename = 'output.csv'
+  f = open(filename, 'w')
   fields = list(columns.values())
   fields.extend(['last_name_normed', 'latitude', 'longitude'])
 
@@ -290,17 +341,45 @@ def write_data(data):
       writer.writerow(row)
 
   f.close()
-  print('Finished')
+  print(f'Processed data and dumped it to {filename}')
+
+
+def run(input_file):
+  input_data = read_data(input_file)
+
+  # Clean date & name fields
+  result = apply_map(input_data, clean_data)
+
+  # Normalize last names
+  name_map = generate_name_map(result)
+  result = apply_map(result, norm_name, name_map)
+
+  # Load previously geocoded place map for faster data processing
+  places_map = json.load(open('./places_map.json', 'r'))
+
+  # Geocode location fields
+  coder = Nominatim(timeout=20, user_agent='ancestry-geocoder')
+  lookup_fn = generate_location_lookup(coder, places_map)
+  result = apply_map(result, lookup_fn)
+
+  # Remove sensitive data
+  result = apply_map(result, remove_sensitive_dates)
+  result = apply_filter(result, remove_sensitive_person)
+
+  # Save back potentially updated place map
+  json.dump(places_map, open('./places_map.json', 'w'), indent=2)
+
+  write_data(result)
 
 
 if __name__ == '__main__':
-  input_data = read_data('Combined-All-10-2020.csv')
-  cleaned = apply_fn(input_data, clean_data)
-  name_map = generate_name_map(cleaned)
-  result = apply_fn(cleaned, norm_name, name_map)
-  places_map = json.load(open('./places_map.json', 'r'))
-  lookup_fn = generate_location_lookup(places_map)
-  geocoded = apply_fn(result, lookup_fn)
+  parser = ArgumentParser(description='Process data.')
+  parser.add_argument(
+    '-i',
+    dest='input_file',
+    required=True,
+    help='Input file located in `data` directory.'
+  )
+  args = parser.parse_args()
 
-  json.dump(places_map, open('./places_map.json', 'w'), indent=2)
-  write_data(geocoded)
+  run(args.input_file)
