@@ -380,6 +380,6 @@ if __name__ == '__main__':
     required=True,
     help='Input file located in `data` directory.'
   )
-  args = parser.parse_args()
+  arg = parser.parse_args()
 
-  run(args.input_file)
+  run(arg.input_file)
