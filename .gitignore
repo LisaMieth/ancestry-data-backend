@@ -1,2 +1,5 @@
 .vscode
 data
+.env
+places_map.json
+__pycache__
