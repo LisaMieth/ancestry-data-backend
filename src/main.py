@@ -1,5 +1,4 @@
 import csv
-import difflib
 import re
 import json
 from os import path
@@ -89,6 +88,51 @@ columns = {
 	'OBJE.TITL.1': 'file_1_title',
 }
 
+# TODO: Figure out how to handle duplicate family names in family tree lookup
+# example 'Lindtmayr' (Anna, verheiratet mit Funk Jakob)
+#  & Lindtmayr Maria (verheiratet mit Straiffer Sebastian)
+# This is currently the only approach that works across the board. Any prerpocessing or phonetic
+# comparison is either too loose or too restrictive for the different values that need to 
+# potentially match.
+variations_mapping = {
+  'Amann': ['Aemann', 'Amon'],
+  'Bettinger': ['Pettinger', 'Pöttinger'],
+  'Böttichhofer': ['Betzighofer', 'Bettighofer'],
+  'Böller': ['Beller'],
+  'Claß': ['Clas'],
+  'Diez': ['Dirz'],
+  'Dreischl': ['Droschl'],
+  'Eckart': ['Eckhard'],
+  'Eckmüller': ['Edmüller'],
+  'Eibl': ['Älbl'],
+  'Feigl': ['Faigl'],
+  'Forster': ['Vorster'],
+  'Funk': ['Funck'],
+  'Gänther': ['Gänthner'],
+  'Grabmaier': ['Grabmayr', 'Grabmair'],
+  'Grahammer': ['Krahammer', 'Krahamer'],
+  'Greil': ['Kreil', 'Kraell', 'Kroell'],
+  'Hofertseder': ['Hofferseder', 'Hoffereder'],
+  'Kinader': ['Khenater', 'Khenader', 'Kenater'],
+  'Kollmann': ['Kohlmann'],
+  'Kriechbaumer': ['Kriechbauer'],
+  'Lämpl': ['Lampl'],
+  'Leyrer': ['Leirer', 'Leurer'],
+  'Lindtmayr': ['Lindemayr'],
+  'Metzger': ['Mezger'],
+  'Moßmiller': ['Moosmüller'],
+  'Nasl': ['Näßl', 'Nesl'],
+  'Neugschwender': ['Neuschwender', 'Neuschwendner'],
+  'Neumair': ['Neumayr'],
+  'Perstorfer': ['Peherstorfer'],
+  'Pföterl': ['Pfötterl'],
+  'Rottenfußer': ['Rotnfußer'],
+  'Ruedorfer': ['Ruedorffer', 'Ruhdorfer'],
+  'Rummelsberger': ['Rumelsberger'],
+  'Spöckmair': ['Spöckmayr'],
+  'Zächerl': ['Zacherl'],
+}
+
 
 def read_data(file_name):
   cache = []
@@ -129,19 +173,27 @@ def generate_name_map(data):
   return cache
 
 
-def name_lookup(elem, possibilities):
-  """Returns the closest matches to the element."""
-  return difflib.get_close_matches(elem, possibilities, n=10, cutoff=0.7)
+def generate_last_name_lookup():
+  """Generate name lookup from variations mapping."""
+  norm_lookup = {x: key for key, vals in variations_mapping.items() for x in vals}
+  norm_lookup.update({key: key for key in variations_mapping})
+
+  return norm_lookup
 
 
 def norm_name(elem, mapping):
-  """Grabs the latest version of a name."""
+  """Grab the normalised version of a given last name if it differs from original."""
   cache = elem.copy()
-  possibilities = name_lookup(elem['last_name'], mapping.keys())
-  dates = [mapping[x] for x in possibilities]
-  sorted_names = [x for _,x in sorted(zip(dates, possibilities))]
-  normed = sorted_names[-1] if len(sorted_names) > 0 else elem['last_name']
-  cache['last_name_normed'] = normed
+  last_name = cache['last_name']
+  cache['last_name_normed'] = mapping.get(last_name) or last_name
+
+  return cache
+
+
+def add_variations(elem, mapping):
+  """Add potential last name variations."""
+  cache = elem.copy()
+  cache['last_name_variations'] = mapping.get(cache['last_name_normed']) or None
 
   return cache
 
@@ -331,7 +383,7 @@ def write_data(data):
   filename = 'output.csv'
   f = open(filename, 'w')
   fields = list(columns.values())
-  fields.extend(['last_name_normed', 'latitude', 'longitude'])
+  fields.extend(['last_name_normed', 'last_name_variations', 'latitude', 'longitude'])
 
   with f:
     writer = csv.DictWriter(f, fieldnames=fields)
@@ -351,8 +403,11 @@ def run(input_file):
   result = apply_map(input_data, clean_data)
 
   # Normalize last names
-  name_map = generate_name_map(result)
+  name_map = generate_last_name_lookup()
   result = apply_map(result, norm_name, name_map)
+
+  # Add last name variations
+  result = apply_map(result, add_variations, variations_mapping)
 
   # Load previously geocoded place map for faster data processing
   places_map = json.load(open('./places_map.json', 'r'))

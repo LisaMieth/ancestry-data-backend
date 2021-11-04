@@ -29,7 +29,8 @@ Since it is manually entered data (although extensively cleaned), some specific 
 - normalize last names
   - last names were subjected to change over time due to individual writing & pronounciation
   - as far as possible & useful, the original spelling found in church records has been kept
-  - to identify members of a family by last name easily, the last name is normalized by looking up close matches (`difflib`) and grabbing the latest version
+  - to identify members of a family by last name easily, the last name is normalized via a manuall mapping containing actual variations
+  - a list of variations of a last name is also added for display on the frontend
 - geocoding
   - for plotting this data on a map, geocoding is essential
   - locations are coalesced before geocoding (since some persons may only be known for one of birth/marriage/death location)
