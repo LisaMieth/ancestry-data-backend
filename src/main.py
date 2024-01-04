@@ -92,7 +92,7 @@ columns = {
 # example 'Lindtmayr' (Anna, verheiratet mit Funk Jakob)
 #  & Lindtmayr Maria (verheiratet mit Straiffer Sebastian)
 # This is currently the only approach that works across the board. Any prerpocessing or phonetic
-# comparison is either too loose or too restrictive for the different values that need to 
+# comparison is either too loose or too restrictive for the different values that need to
 # potentially match.
 variations_mapping = {
   'Amann': ['Aemann', 'Amon'],
@@ -117,7 +117,7 @@ variations_mapping = {
   'Kollmann': ['Kohlmann'],
   'Kriechbaumer': ['Kriechbauer'],
   'Lämpl': ['Lampl'],
-  'Leyrer': ['Leirer', 'Leurer'],
+  'Leyrer': ['Leirer', 'Leurer', 'Leigner'],
   'Lindtmayr': ['Lindemayr'],
   'Metzger': ['Mezger'],
   'Moßmiller': ['Moosmüller'],
@@ -136,15 +136,16 @@ variations_mapping = {
 
 def read_data(file_name):
   cache = []
-  f = open(path.join('data', file_name), 'r', encoding='utf-16')
-  fields = list(columns.values())
-  reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_ALL, fieldnames=fields)
-  next(reader) # Skip header
 
-  for row in reader:
-    cache.append(row)
+  with open(path.join('data', file_name), 'r', encoding='utf-16') as f:
+    fields = list(columns.values())
+    reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_ALL, fieldnames=fields)
+    next(reader) # Skip header
 
-  return cache
+    for row in reader:
+      cache.append(row)
+
+    return cache
 
 
 def generate_name_map(data):
@@ -295,7 +296,7 @@ def geocode(geocoder, elem):
     except GeocoderTimedOut:
       sleep(5)
       # Add for retry
-      possibilities.append(item)
+      possibilities.append(item) # pylint: disable=modified-iterating-list
 
   return location
 
@@ -381,7 +382,7 @@ def apply_filter(l, func):
 
 def write_data(data):
   filename = 'output.csv'
-  f = open(filename, 'w')
+  f = open(filename, 'w', encoding='utf-8')
   fields = list(columns.values())
   fields.extend(['last_name_normed', 'last_name_variations', 'latitude', 'longitude'])
 
@@ -410,7 +411,7 @@ def run(input_file):
   result = apply_map(result, add_variations, variations_mapping)
 
   # Load previously geocoded place map for faster data processing
-  places_map = json.load(open('./places_map.json', 'r'))
+  places_map = json.load(open('./places_map.json', 'r')) # pylint: disable=consider-using-with
 
   # Geocode location fields
   coder = Nominatim(timeout=20, user_agent='ancestry-geocoder')
@@ -422,7 +423,7 @@ def run(input_file):
   result = apply_filter(result, remove_sensitive_person)
 
   # Save back potentially updated place map
-  json.dump(places_map, open('./places_map.json', 'w'), indent=2)
+  json.dump(places_map, open('./places_map.json', 'w'), indent=2) # pylint: disable=consider-using-with
 
   write_data(result)
 
