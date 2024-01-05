@@ -8,7 +8,7 @@ from argparse import ArgumentParser
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
 
-columns = {
+COLUMNS = {
 	'#REFN': 'reference',
 	'NAME': 'full_name',
 	'FATH.NAME': 'father_name',
@@ -94,51 +94,13 @@ columns = {
 # This is currently the only approach that works across the board. Any prerpocessing or phonetic
 # comparison is either too loose or too restrictive for the different values that need to
 # potentially match.
-variations_mapping = {
-  'Amann': ['Aemann', 'Amon'],
-  'Bettinger': ['Pettinger', 'Pöttinger'],
-  'Böttichhofer': ['Betzighofer', 'Bettighofer'],
-  'Böller': ['Beller'],
-  'Claß': ['Clas'],
-  'Diez': ['Dirz'],
-  'Dreischl': ['Droschl'],
-  'Eckart': ['Eckhard'],
-  'Eckmüller': ['Edmüller'],
-  'Eibl': ['Älbl'],
-  'Feigl': ['Faigl'],
-  'Forster': ['Vorster'],
-  'Funk': ['Funck'],
-  'Gänther': ['Gänthner'],
-  'Grabmaier': ['Grabmayr', 'Grabmair'],
-  'Grahammer': ['Krahammer', 'Krahamer'],
-  'Greil': ['Kreil', 'Kraell', 'Kroell'],
-  'Hofertseder': ['Hofferseder', 'Hoffereder'],
-  'Kinader': ['Khenater', 'Khenader', 'Kenater'],
-  'Kollmann': ['Kohlmann'],
-  'Kriechbaumer': ['Kriechbauer'],
-  'Lämpl': ['Lampl'],
-  'Leyrer': ['Leirer', 'Leurer', 'Leigner'],
-  'Lindtmayr': ['Lindemayr'],
-  'Metzger': ['Mezger'],
-  'Moßmiller': ['Moosmüller'],
-  'Nasl': ['Näßl', 'Nesl'],
-  'Neugschwender': ['Neuschwender', 'Neuschwendner'],
-  'Neumair': ['Neumayr'],
-  'Perstorfer': ['Peherstorfer'],
-  'Pföterl': ['Pfötterl'],
-  'Rottenfußer': ['Rotnfußer'],
-  'Ruedorfer': ['Ruedorffer', 'Ruhdorfer'],
-  'Rummelsberger': ['Rumelsberger'],
-  'Spöckmair': ['Spöckmayr'],
-  'Zächerl': ['Zacherl'],
-}
-
+VARIATIONS_MAPPING = json.load(open('assets/last_name_map.json', 'r')) # pylint: disable=consider-using-with
 
 def read_data(file_name):
   cache = []
 
   with open(path.join('data', file_name), 'r', encoding='utf-16') as f:
-    fields = list(columns.values())
+    fields = list(COLUMNS.values())
     reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_ALL, fieldnames=fields)
     next(reader) # Skip header
 
@@ -176,8 +138,8 @@ def generate_name_map(data):
 
 def generate_last_name_lookup():
   """Generate name lookup from variations mapping."""
-  norm_lookup = {x: key for key, vals in variations_mapping.items() for x in vals}
-  norm_lookup.update({key: key for key in variations_mapping})
+  norm_lookup = {x: key for key, vals in VARIATIONS_MAPPING.items() for x in vals}
+  norm_lookup.update({key: key for key in VARIATIONS_MAPPING})
 
   return norm_lookup
 
@@ -381,9 +343,9 @@ def apply_filter(l, func):
 
 
 def write_data(data):
-  filename = 'output.csv'
+  filename = 'assets/result.csv'
   f = open(filename, 'w', encoding='utf-8')
-  fields = list(columns.values())
+  fields = list(COLUMNS.values())
   fields.extend(['last_name_normed', 'last_name_variations', 'latitude', 'longitude'])
 
   with f:
@@ -408,10 +370,10 @@ def run(input_file):
   result = apply_map(result, norm_name, name_map)
 
   # Add last name variations
-  result = apply_map(result, add_variations, variations_mapping)
+  result = apply_map(result, add_variations, VARIATIONS_MAPPING)
 
   # Load previously geocoded place map for faster data processing
-  places_map = json.load(open('./places_map.json', 'r')) # pylint: disable=consider-using-with
+  places_map = json.load(open('assets/places_map.json', 'r')) # pylint: disable=consider-using-with
 
   # Geocode location fields
   coder = Nominatim(timeout=20, user_agent='ancestry-geocoder')
@@ -423,7 +385,7 @@ def run(input_file):
   result = apply_filter(result, remove_sensitive_person)
 
   # Save back potentially updated place map
-  json.dump(places_map, open('./places_map.json', 'w'), indent=2) # pylint: disable=consider-using-with
+  json.dump(places_map, open('assets/places_map.json', 'w'), indent=2) # pylint: disable=consider-using-with
 
   write_data(result)
 
