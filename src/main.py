@@ -19,17 +19,19 @@ COLUMNS = {
 	'SURN': 'last_name',
 	'GIVN': 'first_name',
 	'SEX': 'gender',
-	'BIRT.PLAC': 'birth_place',
-	'OCCU': 'occupation',
-	'SOUR': 'source',
+	'BIRT.DATE': 'date_birth',
+	'DEAT.DATE': 'date_death',
 
 	# Don't need those
 	'CHAN.DATE': 'date_changed',
 	'CHAN.DATE.TIME': 'time_changed',
 
-	'BIRT.DATE': 'date_birth',
-	'DEAT.DATE': 'date_death',
+	'BIRT.PLAC': 'birth_place',
+	'OCCU': 'occupation',
+
 	'NOTE': 'note',
+	'SOUR': 'source',
+
 	'DEAT.PLAC': 'death_place',
 	'NOTE.2': 'note_2',
 	'SOUR.2': 'source_2',
@@ -172,6 +174,7 @@ def clean_date(value):
 
   if 'ca' in value:
     value = value.replace('ca ', '01.01.')
+    value = value.replace('ca. ', '01.01.')
 
   if 'vor' in value:
     value = value.replace('vor ', '')
@@ -189,7 +192,7 @@ def clean_date(value):
   if value_match:
     value = value_match.group()
 
-  return datetime.strptime(value.strip(), '%d.%m.%Y')
+  return datetime.strptime(value.strip(), '%d.%m.%Y').date()
 
 
 def clean_data(elem):
@@ -209,6 +212,10 @@ def clean_data(elem):
 
     if date:
       cache[d] = clean_date(date)
+
+  # Assign years
+  cache["year_birth"] = cache["date_birth"].year if cache["date_birth"] else None
+  cache["year_death"] = cache["date_death"].year if cache["date_death"] else None
 
   # Clean last name values
   cache['last_name'] = re.sub(r'\(|\)|\?', '', elem['last_name'])
@@ -298,6 +305,7 @@ def generate_location_lookup(geocoder, cache=None):
 
     elem['latitude'] = latitude
     elem['longitude'] = longitude
+    elem['place'] = place
 
     return elem
 
@@ -308,7 +316,7 @@ def remove_sensitive_person(elem):
   """Filters out any person born after 1945."""
   date_value = elem.get('date_birth', None)
 
-  if date_value and date_value > datetime.strptime('01.01.1945', '%d.%m.%Y'):
+  if date_value and date_value > datetime.strptime('01.01.1945', '%d.%m.%Y').date():
     return None
 
   return elem
@@ -327,7 +335,7 @@ def remove_sensitive_dates(elem):
     'date_marriage_4',
   ]:
     value = elem.get(item, None)
-    if value and value > datetime.strptime('01.01.1945', '%d.%m.%Y'):
+    if value and value > datetime.strptime('01.01.1945', '%d.%m.%Y').date():
       cache[item] = None
 
   return cache
@@ -346,7 +354,7 @@ def write_data(data):
   filename = 'assets/result.csv'
   f = open(filename, 'w', encoding='utf-8')
   fields = list(COLUMNS.values())
-  fields.extend(['last_name_normed', 'last_name_variations', 'latitude', 'longitude'])
+  fields.extend(['last_name_normed', 'last_name_variations', 'latitude', 'longitude', 'place', 'year_birth', 'year_death'])
 
   with f:
     writer = csv.DictWriter(f, fieldnames=fields)
