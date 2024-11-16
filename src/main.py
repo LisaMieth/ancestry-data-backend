@@ -8,7 +8,7 @@ from argparse import ArgumentParser
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
 
-columns = {
+COLUMNS = {
 	'#REFN': 'reference',
 	'NAME': 'full_name',
 	'FATH.NAME': 'father_name',
@@ -19,17 +19,19 @@ columns = {
 	'SURN': 'last_name',
 	'GIVN': 'first_name',
 	'SEX': 'gender',
-	'BIRT.PLAC': 'birth_place',
-	'OCCU': 'occupation',
-	'SOUR': 'source',
+	'BIRT.DATE': 'date_birth',
+	'DEAT.DATE': 'date_death',
 
 	# Don't need those
 	'CHAN.DATE': 'date_changed',
 	'CHAN.DATE.TIME': 'time_changed',
 
-	'BIRT.DATE': 'date_birth',
-	'DEAT.DATE': 'date_death',
+	'BIRT.PLAC': 'birth_place',
+	'OCCU': 'occupation',
+
 	'NOTE': 'note',
+	'SOUR': 'source',
+
 	'DEAT.PLAC': 'death_place',
 	'NOTE.2': 'note_2',
 	'SOUR.2': 'source_2',
@@ -94,51 +96,13 @@ columns = {
 # This is currently the only approach that works across the board. Any prerpocessing or phonetic
 # comparison is either too loose or too restrictive for the different values that need to
 # potentially match.
-variations_mapping = {
-  'Amann': ['Aemann', 'Amon'],
-  'Bettinger': ['Pettinger', 'Pöttinger'],
-  'Böttichhofer': ['Betzighofer', 'Bettighofer'],
-  'Böller': ['Beller'],
-  'Claß': ['Clas'],
-  'Diez': ['Dirz'],
-  'Dreischl': ['Droschl'],
-  'Eckart': ['Eckhard'],
-  'Eckmüller': ['Edmüller'],
-  'Eibl': ['Älbl'],
-  'Feigl': ['Faigl'],
-  'Forster': ['Vorster'],
-  'Funk': ['Funck'],
-  'Gänther': ['Gänthner'],
-  'Grabmaier': ['Grabmayr', 'Grabmair'],
-  'Grahammer': ['Krahammer', 'Krahamer'],
-  'Greil': ['Kreil', 'Kraell', 'Kroell'],
-  'Hofertseder': ['Hofferseder', 'Hoffereder'],
-  'Kinader': ['Khenater', 'Khenader', 'Kenater'],
-  'Kollmann': ['Kohlmann'],
-  'Kriechbaumer': ['Kriechbauer'],
-  'Lämpl': ['Lampl'],
-  'Leyrer': ['Leirer', 'Leurer', 'Leigner'],
-  'Lindtmayr': ['Lindemayr'],
-  'Metzger': ['Mezger'],
-  'Moßmiller': ['Moosmüller'],
-  'Nasl': ['Näßl', 'Nesl'],
-  'Neugschwender': ['Neuschwender', 'Neuschwendner'],
-  'Neumair': ['Neumayr'],
-  'Perstorfer': ['Peherstorfer'],
-  'Pföterl': ['Pfötterl'],
-  'Rottenfußer': ['Rotnfußer'],
-  'Ruedorfer': ['Ruedorffer', 'Ruhdorfer'],
-  'Rummelsberger': ['Rumelsberger'],
-  'Spöckmair': ['Spöckmayr'],
-  'Zächerl': ['Zacherl'],
-}
-
+VARIATIONS_MAPPING = json.load(open('assets/last_name_map.json', 'r')) # pylint: disable=consider-using-with
 
 def read_data(file_name):
   cache = []
 
   with open(path.join('data', file_name), 'r', encoding='utf-16') as f:
-    fields = list(columns.values())
+    fields = list(COLUMNS.values())
     reader = csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_ALL, fieldnames=fields)
     next(reader) # Skip header
 
@@ -176,8 +140,8 @@ def generate_name_map(data):
 
 def generate_last_name_lookup():
   """Generate name lookup from variations mapping."""
-  norm_lookup = {x: key for key, vals in variations_mapping.items() for x in vals}
-  norm_lookup.update({key: key for key in variations_mapping})
+  norm_lookup = {x: key for key, vals in VARIATIONS_MAPPING.items() for x in vals}
+  norm_lookup.update({key: key for key in VARIATIONS_MAPPING})
 
   return norm_lookup
 
@@ -210,6 +174,7 @@ def clean_date(value):
 
   if 'ca' in value:
     value = value.replace('ca ', '01.01.')
+    value = value.replace('ca. ', '01.01.')
 
   if 'vor' in value:
     value = value.replace('vor ', '')
@@ -227,7 +192,7 @@ def clean_date(value):
   if value_match:
     value = value_match.group()
 
-  return datetime.strptime(value.strip(), '%d.%m.%Y')
+  return datetime.strptime(value.strip(), '%d.%m.%Y').date()
 
 
 def clean_data(elem):
@@ -247,6 +212,10 @@ def clean_data(elem):
 
     if date:
       cache[d] = clean_date(date)
+
+  # Assign years
+  cache["year_birth"] = cache["date_birth"].year if cache["date_birth"] else None
+  cache["year_death"] = cache["date_death"].year if cache["date_death"] else None
 
   # Clean last name values
   cache['last_name'] = re.sub(r'\(|\)|\?', '', elem['last_name'])
@@ -336,6 +305,7 @@ def generate_location_lookup(geocoder, cache=None):
 
     elem['latitude'] = latitude
     elem['longitude'] = longitude
+    elem['place'] = place
 
     return elem
 
@@ -346,7 +316,7 @@ def remove_sensitive_person(elem):
   """Filters out any person born after 1945."""
   date_value = elem.get('date_birth', None)
 
-  if date_value and date_value > datetime.strptime('01.01.1945', '%d.%m.%Y'):
+  if date_value and date_value > datetime.strptime('01.01.1945', '%d.%m.%Y').date():
     return None
 
   return elem
@@ -365,7 +335,7 @@ def remove_sensitive_dates(elem):
     'date_marriage_4',
   ]:
     value = elem.get(item, None)
-    if value and value > datetime.strptime('01.01.1945', '%d.%m.%Y'):
+    if value and value > datetime.strptime('01.01.1945', '%d.%m.%Y').date():
       cache[item] = None
 
   return cache
@@ -381,10 +351,10 @@ def apply_filter(l, func):
 
 
 def write_data(data):
-  filename = 'output.csv'
+  filename = 'assets/result.csv'
   f = open(filename, 'w', encoding='utf-8')
-  fields = list(columns.values())
-  fields.extend(['last_name_normed', 'last_name_variations', 'latitude', 'longitude'])
+  fields = list(COLUMNS.values())
+  fields.extend(['last_name_normed', 'last_name_variations', 'latitude', 'longitude', 'place', 'year_birth', 'year_death'])
 
   with f:
     writer = csv.DictWriter(f, fieldnames=fields)
@@ -408,10 +378,10 @@ def run(input_file):
   result = apply_map(result, norm_name, name_map)
 
   # Add last name variations
-  result = apply_map(result, add_variations, variations_mapping)
+  result = apply_map(result, add_variations, VARIATIONS_MAPPING)
 
   # Load previously geocoded place map for faster data processing
-  places_map = json.load(open('./places_map.json', 'r')) # pylint: disable=consider-using-with
+  places_map = json.load(open('assets/places_map.json', 'r')) # pylint: disable=consider-using-with
 
   # Geocode location fields
   coder = Nominatim(timeout=20, user_agent='ancestry-geocoder')
@@ -423,7 +393,7 @@ def run(input_file):
   result = apply_filter(result, remove_sensitive_person)
 
   # Save back potentially updated place map
-  json.dump(places_map, open('./places_map.json', 'w'), indent=2) # pylint: disable=consider-using-with
+  json.dump(places_map, open('assets/places_map.json', 'w'), indent=2) # pylint: disable=consider-using-with
 
   write_data(result)
 

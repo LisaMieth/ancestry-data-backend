@@ -1,37 +1,34 @@
-import argparse
-import os
-from dotenv import load_dotenv
+import duckdb
 import pandas as pd
-from sqlalchemy import create_engine
 
-load_dotenv('.env')
 
-# TODO: Error handling
-def load_data(filename, db_url):
-  # Load in the data
-  df = pd.read_csv(filename)
-  # Instantiate sqlachemy.create_engine object
-  engine = create_engine(db_url)
+def persist_db(src_file, db_file):
+  con = duckdb.connect(db_file)
+  # Increase sample size to avoid DuckDB guessing the wrong type because of null values.
+  con.execute("SET GLOBAL pandas_analyze_sample=10000")
+  df = pd.read_csv(src_file)
+  sql_query = open('./src/sql/family.sql', 'r').read()
 
-  # Save the data from dataframe to
-  # postgres table "ancestry_dataset"
-  df.to_sql(
-      'ancestry_dataset',
-      engine,
-      index=False, # Not copying over the index
-      if_exists='replace'
-  )
+  # Recreate tables.
+  con.execute("DROP TABLE IF EXISTS ancestry")
+  con.execute("DROP TABLE IF EXISTS family")
+
+  # Insert new data into ancestry src table.
+  con.execute("CREATE TABLE ancestry AS SELECT * FROM df")
+
+  # Query to only select direct ancestors and exclude any non-related spouses and half-siblings of ancestors.
+  df_fam = pd.read_sql(sql_query, con)
+
+  # Create new family table from family query.
+  con.execute("CREATE TABLE family AS SELECT * FROM df_fam")
+
+  con.close()
+
 
 if __name__ == '__main__':
-  parser = argparse.ArgumentParser()
-  parser.add_argument('--prod', dest='prod', default=False, action='store_true',
-                      help='Flag if production db is supposed to be used.')
+  input_file = 'assets/result.csv'
+  db_file_name = 'assets/main.db'
 
-  args = parser.parse_args()
+  persist_db(input_file, db_file_name)
 
-  DB_URL = os.getenv('PROD_DB_URL') if args.prod else os.getenv('DEV_DB_URL')
-  input_file = 'output.csv'
-
-  load_data(input_file, DB_URL)
-
-  print('DONE.')
+  print(f"Written {input_file} to {db_file_name}.")
