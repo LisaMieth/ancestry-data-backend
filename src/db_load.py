@@ -6,6 +6,10 @@ def persist_db(src_file, db_file):
   con = duckdb.connect(db_file)
   # Increase sample size to avoid DuckDB guessing the wrong type because of null values.
   con.execute("SET GLOBAL pandas_analyze_sample=10000")
+  # Install & load DuckDB spatial extension
+  con.execute("INSTALL spatial;")
+  con.execute("LOAD spatial;")
+
   df = pd.read_csv(src_file)
   sql_query = open('./src/sql/family.sql', 'r').read()
 

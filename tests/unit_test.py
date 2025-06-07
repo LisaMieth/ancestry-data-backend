@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock
 from geopy.exc import GeocoderTimedOut
 from src.main import (clean_date, generate_name_map, norm_name, generate_possibilities,
-  geocode, generate_location_lookup, remove_sensitive_dates, remove_sensitive_person)
+  geocode, generate_location_lookup, remove_sensitive_dates, remove_sensitive_person, scatter)
 
 dformat = '%d.%m.%Y'
 
@@ -15,19 +15,19 @@ class TestCleanDate(unittest.TestCase):
 
   def test_inexact_same_values(self):
     """Correctly sets 01.01. as date for inexact value."""
-    sample = datetime.strptime('01.01.1800', '%d.%m.%Y')
+    sample = datetime.strptime('01.01.1800', '%d.%m.%Y').date()
     self.assertEqual(clean_date('um 1800'), sample)
     self.assertEqual(clean_date('ca 1800'), sample)
     self.assertEqual(clean_date('1800'), sample)
 
   def test_inexact_smaller_value(self):
     """Correctly decreases year for inexact before value."""
-    sample = datetime.strptime('01.01.1799', '%d.%m.%Y')
+    sample = datetime.strptime('01.01.1799', '%d.%m.%Y').date()
     self.assertEqual(clean_date('vor 1800'), sample)
 
   def test_inexact_larger_value(self):
     """Correctly decreases year for inexact before value."""
-    sample = datetime.strptime('01.01.1801', '%d.%m.%Y')
+    sample = datetime.strptime('01.01.1801', '%d.%m.%Y').date()
     self.assertEqual(clean_date('nach 1800'), sample)
 
 
@@ -60,9 +60,9 @@ class TestNameMap(unittest.TestCase):
 class TestNormName(unittest.TestCase):
   def setUp(self):
     self.sample_map = {
-      'Bettinger': datetime.strptime('01.01.1800', dformat),
-      'Pettinger': datetime.strptime('01.01.1790', dformat),
-      'Pöttinger': datetime.strptime('01.01.1765', dformat),
+      'Bettinger': 'Bettinger',
+      'Pettinger': 'Bettinger',
+      'Pöttinger': 'Bettinger',
     }
 
   def test_norm_name_same(self):
@@ -156,7 +156,7 @@ class TestSensitiveDataRemoval(unittest.TestCase):
   def test_sensitive_people_removed(self):
     """Assert that None is returned for elements with a birthdate > 1945."""
     sample = {
-      'date_birth': datetime.strptime('01.01.1980', '%d.%m.%Y'),
+      'date_birth': datetime.strptime('01.01.1980', '%d.%m.%Y').date(),
       'first_name': 'Test',
       'last_name': 'Person',
     }
@@ -166,7 +166,7 @@ class TestSensitiveDataRemoval(unittest.TestCase):
   def test_sensitive_people_not_removed(self):
     """Assert that element is returned if birthdate < 1945."""
     sample = {
-      'date_birth': datetime.strptime('01.01.1920', '%d.%m.%Y'),
+      'date_birth': datetime.strptime('01.01.1920', '%d.%m.%Y').date(),
       'first_name': 'Test',
       'last_name': 'Person',
     }
@@ -177,12 +177,12 @@ class TestSensitiveDataRemoval(unittest.TestCase):
     """Assert that dates > 1945 are removed from element."""
     sample = [
       {
-        'date_death': datetime.strptime('01.01.1980', '%d.%m.%Y'),
+        'date_death': datetime.strptime('01.01.1980', '%d.%m.%Y').date(),
         'first_name': 'Test',
         'last_name': 'Person'
       },
       {
-        'date_death': datetime.strptime('01.01.1920', '%d.%m.%Y'),
+        'date_death': datetime.strptime('01.01.1920', '%d.%m.%Y').date(),
         'first_name': 'Test',
         'last_name': 'Person'
       },
@@ -191,7 +191,7 @@ class TestSensitiveDataRemoval(unittest.TestCase):
     result = [
       {'date_death': None, 'first_name': 'Test', 'last_name': 'Person'},
       {
-        'date_death': datetime.strptime('01.01.1920', '%d.%m.%Y'),
+        'date_death': datetime.strptime('01.01.1920', '%d.%m.%Y').date(),
         'first_name': 'Test',
         'last_name': 'Person'
       },

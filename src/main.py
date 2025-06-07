@@ -269,7 +269,6 @@ def geocode(geocoder, elem):
 
   return location
 
-
 def generate_location_lookup(geocoder, cache=None):
   """Creates a geocode lookup function."""
   place_columns = [
@@ -288,6 +287,7 @@ def generate_location_lookup(geocoder, cache=None):
     """Grabs the geocode of the first non-null place element of the given record and adds it
     to the record and cache."""
     place = coalesce(*[elem.get(x) for x in place_columns])
+    place = place.strip() if place is not None else place
     location = cache.get(place, None)
     latitude, longitude = None, None
 
