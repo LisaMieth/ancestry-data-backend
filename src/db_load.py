@@ -11,7 +11,7 @@ def persist_db(src_file, db_file):
   con.execute("LOAD spatial;")
 
   df = pd.read_csv(src_file)
-  sql_query = open('./src/sql/family.sql', 'r').read()
+  sql_query = open("./src/sql/family.sql", "r").read()
 
   # Recreate tables.
   con.execute("DROP TABLE IF EXISTS ancestry")
@@ -29,9 +29,9 @@ def persist_db(src_file, db_file):
   con.close()
 
 
-if __name__ == '__main__':
-  input_file = 'assets/result.csv'
-  db_file_name = 'assets/main.db'
+if __name__ == "__main__":
+  input_file = "assets/result.csv"
+  db_file_name = "assets/main.db"
 
   persist_db(input_file, db_file_name)
 
