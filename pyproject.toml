@@ -12,7 +12,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pylint>=4.0.5",
+    "ruff>=0.15.12",
     "taskipy>=1.14.1",
 ]
 
