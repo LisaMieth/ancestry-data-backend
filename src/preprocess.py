@@ -114,6 +114,16 @@ def clean_data(df: pd.DataFrame, date_cols: list) -> pd.DataFrame:
   return df
 
 
+def load_cached_places_map() -> dict:
+  # Load previously geocoded place map for faster data processing
+  try:
+    with open("assets/places_map.json", "r") as f:
+      places_map = json.load(f)
+      return places_map
+  except FileNotFoundError:
+    return {}
+
+
 def generate_possibilities(value):
   """Returns list of possible location values from given input value."""
   possibilities = [value]
@@ -129,7 +139,7 @@ def generate_possibilities(value):
   return possibilities
 
 
-def geocode(geocoder: Nominatim, elem: str) -> Location | None:
+def geocode(geocoder: Nominatim, elem: str | None) -> Location | None:
   """Attempts to find geocode for the given value or its possibilities."""
   if elem == "" or elem is None:
     return None
@@ -235,9 +245,7 @@ def run(config_path: str, data_file_path: str) -> pd.DataFrame:
   # name_map = generate_last_name_lookup()
   # result = apply_map(result, norm_name, name_map)
 
-  # Load previously geocoded place map for faster data processing
-  with open("assets/places_map.json", "r") as f:
-    places_map = json.load(f)
+  places_map = load_cached_places_map()
 
   # Geocode location fields
   coder = Nominatim(user_agent="ancestry-geocoder")
@@ -249,6 +257,10 @@ def run(config_path: str, data_file_path: str) -> pd.DataFrame:
   df = remove_sensitive_data(df, cutoff_date, date_cols)
 
   write_data(df)
+
+  # Save back potentially updated place map
+  with open("assets/places_map.json", "w") as f:
+    json.dump(places_map, f, indent=2)
 
   return df
 
