@@ -211,7 +211,7 @@ class IntegrationTest(unittest.TestCase):
     excluded_cols = [
       x["target_col"] for x in config["columns"] if not x.get("include", True)
     ]
-    result = run(config_path, "./data/SampleData.csv")
+    result = run(config_path, "./sample_data/SampleData.csv")
     intersect = list(set(excluded_cols) & set(result.columns))
 
     self.assertListEqual(intersect, [])
