@@ -1,5 +1,8 @@
 # Ahnenforschung - Ancestry
 
+[![main](https://github.com/LisaMieth/ancestry-data-backend/actions/workflows/main.yaml/badge.svg?branch=master)](https://github.com/LisaMieth/ancestry-data-backend/actions/workflows/main.yaml)
+
+
 > Creating space for my ancestors
 
 ## About
@@ -7,6 +10,10 @@ This small project processes CSV based ancestry data and loads it into a Postgre
 
 
 It is intended for personal use only.
+
+
+**Run Command**
+`uv run task build_data -i ./data/SampleData.csv -c ./config/dataset_config.yaml -c ./assets/places_map.json`
 
 
 ## Where is this data coming from?

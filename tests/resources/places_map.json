@@ -1,0 +1,22 @@
+{
+  "Ingolstadt": {
+    "latitude": 48.7630165,
+    "longitude": 11.4250395,
+    "location": "Ingolstadt, Bayern, Deutschland"
+  },
+  "Bad Abbach": {
+    "latitude": 48.9225461,
+    "longitude": 11.9928368,
+    "location": "Bad Abbach, Bahnhofstra\u00dfe, Lengfeld, Bad Abbach, Landkreis Kelheim, Bayern, 93077, Deutschland"
+  },
+  "Schwarzenbruck": {
+    "latitude": 49.349562,
+    "longitude": 11.2479628,
+    "location": "Schwarzenbruck, Landkreis N\u00fcrnberger Land, Bayern, Deutschland"
+  },
+  "Dachau (Muenchen)": {
+    "latitude": 48.2604446,
+    "longitude": 11.4699916,
+    "location": "PLAZA INN Dachau-M\u00fcnchen, 8, Newtonstra\u00dfe, Dachau-Ost, Dachau, Landkreis Dachau, Bayern, 85221, Deutschland"
+  }
+}
