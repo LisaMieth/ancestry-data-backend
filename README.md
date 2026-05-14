@@ -1,5 +1,8 @@
 # Ahnenforschung - Ancestry
 
+[![main](https://github.com/LisaMieth/ancestry-data-backend/actions/workflows/main.yaml/badge.svg?branch=master)](https://github.com/LisaMieth/ancestry-data-backend/actions/workflows/main.yaml)
+
+
 > Creating space for my ancestors
 
 ## About

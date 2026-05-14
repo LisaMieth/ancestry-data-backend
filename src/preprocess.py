@@ -8,6 +8,7 @@ import numpy as np
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
 from geopy.location import Location
+from argparse import ArgumentParser
 
 
 class InvalidConfigFormatError(Exception):
@@ -16,7 +17,7 @@ class InvalidConfigFormatError(Exception):
     self.message = message
 
 
-def read_column_config(config_path: str) -> dict:
+def read_config(config_path: str) -> dict:
   """Read provided YML config file into dictionary."""
   with open(config_path, "r") as f:
     data = f.read()
@@ -25,30 +26,41 @@ def read_column_config(config_path: str) -> dict:
     return config
 
 
-def build_column_mapping(config: dict) -> dict:
+def safe_get(config: dict, key: str):
+  value = config.get(key)
+
+  if value is None:
+    raise InvalidConfigFormatError(f"Config file must include key `{key}`.")
+
+  return value
+
+
+def build_column_mapping(config: dict) -> tuple[dict, list]:
   """Extract target_col names into column list."""
-  _columns = config.get("columns")
-
-  if _columns is None:
-    raise InvalidConfigFormatError("Config file must include top level key `columns`.")
-
+  _columns = safe_get(config, "columns")
   mapping = {}
+  excluded = []
 
   for col in _columns:
     src = col.get("src_col")
     trgt = col.get("target_col")
+    include = col.get("include", True)
 
     if src is None or trgt is None:
       raise InvalidConfigFormatError(
         "`target_col` and `src_col` keys must be specified."
       )
 
+    if not include:
+      excluded.append(trgt)
+
     mapping[src] = trgt
 
-  return mapping
+  return mapping, excluded
 
 
-def read_data(file_name: str, mapping: dict, dtypes) -> pd.DataFrame:
+def read_data(file_name: str, mapping: dict, dtypes, excluded: list) -> pd.DataFrame:
+  """Read CSV file into dataframe."""
   df = pd.read_csv(
     file_name,
     delimiter="\t",
@@ -62,6 +74,9 @@ def read_data(file_name: str, mapping: dict, dtypes) -> pd.DataFrame:
   # Rename columns after reading to avoid conflicts with column order
   df = df.rename(columns=mapping)
   df = df.replace({np.nan: None})
+  df = df.drop(
+    excluded, axis=1, errors="ignore"
+  )  # ignore errors in case any columns don't exist
 
   return df
 
@@ -129,18 +144,19 @@ def geocode(geocoder: Nominatim, elem: str) -> Location | None:
       break
 
     try:
-      location = geocoder.geocode(f"{item}, Germany", language="DE")
+      location = geocoder.geocode(f"{item}, Germany", language="DE")  # type: ignore
     except GeocoderTimedOut:
       sleep(5)
       # Add for retry
       possibilities.append(item)  # pylint: disable=modified-iterating-list
 
-  return location
+  return location  # type: ignore
 
 
 def lookup_location(
   row: pd.Series, geocoder: Nominatim, place_map: dict, cols: list
 ) -> tuple:
+  """For the given row in a dataframe, get coordinates from cache or lookup via geocde()."""
   place = row[cols].bfill().iloc[0]
   place = place.strip() if place is not None else place
   location = place_map.get(place, None)
@@ -165,33 +181,50 @@ def lookup_location(
   return (place, latitude, longitude)
 
 
-def remove_sensitive_data(df: pd.DataFrame, cutoff_date: str, date_cols):
+def remove_sensitive_data(df: pd.DataFrame, cutoff_date, date_cols: list):
+  """Remove any rows with date_birth after the cutoff and nullify values after cuttoff."""
   # Remove persons born after cut-off date
-  cutoff_date = datetime.strptime(cutoff_date, "%Y-%m-%d").date()
-  df = df[~df["date_birth"].gt(cutoff_date)]
+  cutoff = cutoff_date
+  if type(cutoff_date) == str:
+    cutoff = datetime.strptime(cutoff_date, "%Y-%m-%d").date()
+
+  df = df[~df["date_birth"].gt(cutoff)]
 
   # Remove any sensitive dates
-  df[date_cols] = df[date_cols].where(df[date_cols].le(cutoff_date), other=None)
+  df[date_cols] = df[date_cols].where(df[date_cols] <= cutoff, other=None)
 
+  # Remove any sensitive dates
+  df[date_cols] = df[date_cols].where(df[date_cols] <= cutoff, other=None)
+
+  internal_date_cols = ["year_birth", "year_death"]
+  df[internal_date_cols] = df[internal_date_cols].apply(
+    lambda col: col.where(
+      col.dropna().astype("int").reindex(col.index).le(cutoff.year), other=None
+    )
+  )
   return df
 
 
-def run(config_path: str, data_file_path: str) -> None:
-  config = read_column_config(config_path)
-  col_mapping = build_column_mapping(config)
+def write_data(df: pd.DataFrame) -> None:
+  df.to_csv("./assets/results.csv", index=False)
+
+  print("Preprocessed data and wrote to disk.")
+
+
+def run(config_path: str, data_file_path: str) -> pd.DataFrame:
+  config = read_config(config_path)
+  col_mapping, excluded = build_column_mapping(config)
+  date_cols = safe_get(config, "date_columns")
+  place_cols = safe_get(config, "place_columns")
+  cutoff_date = safe_get(config, "cutoff_date")
+
   dtypes = {x: "string" for x in col_mapping.keys()}
 
-  df = read_data(data_file_path, col_mapping, dtypes)
+  df = read_data(data_file_path, col_mapping, dtypes, excluded)
 
-  date_cols = [
-    "date_birth",
-    "date_death",
-    "date_marriage_1",
-    "date_marriage_2",
-    "date_marriage_3",
-    "date_marriage_4",
-  ]
+  # Filter out any columns that don't exist in the data
   date_cols = [c for c in date_cols if c in df.columns]
+  place_cols = [c for c in place_cols if c in df.columns]
 
   df = clean_data(df, date_cols)
 
@@ -203,30 +236,37 @@ def run(config_path: str, data_file_path: str) -> None:
   # result = apply_map(result, norm_name, name_map)
 
   # Load previously geocoded place map for faster data processing
-  places_map = json.load(open("assets/places_map.json", "r"))  # pylint: disable=consider-using-with
-
-  place_cols = [
-    "birth_place",
-    "death_place",
-    "location_marriage_1",
-    "location_marriage_2",
-    "location_marriage_3",
-    "location_marriage_4",
-  ]
+  with open("assets/places_map.json", "r") as f:
+    places_map = json.load(f)
 
   # Geocode location fields
   coder = Nominatim(user_agent="ancestry-geocoder")
-  place_cols = [c for c in place_cols if c in df.columns]
 
   df[["place", "latitude", "longitude"]] = df.apply(
     lookup_location, args=(coder, places_map, place_cols), axis=1
   ).tolist()
 
-  df = remove_sensitive_data(df, "1945-01-01", date_cols)
+  df = remove_sensitive_data(df, cutoff_date, date_cols)
+
+  write_data(df)
+
+  return df
 
 
 if __name__ == "__main__":
-  config_path = "config/column_config.yaml"
-  data_file = "data/SampleData.csv"
+  parser = ArgumentParser(description="Process data.")
+  parser.add_argument(
+    "-i",
+    dest="data_path",
+    required=True,
+    help="Full path to data file.",
+  )
+  parser.add_argument(
+    "-c",
+    dest="config_path",
+    required=True,
+    help="Full path to config file.",
+  )
+  arg = parser.parse_args()
 
-  run(config_path, data_file)
+  run(arg.config_path, arg.data_path)

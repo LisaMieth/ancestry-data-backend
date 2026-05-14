@@ -1,19 +1,24 @@
 import unittest
+from unittest.mock import patch
 import pandas as pd
+import numpy as np
+from yaml import safe_load
 from datetime import datetime
 from src.preprocess import (
   build_column_mapping,
   InvalidConfigFormatError,
   clean_date,
   remove_sensitive_data,
+  run,
 )
 
 
-class PreProcessTest(unittest.TestCase):
+class TestColumnMapping(unittest.TestCase):
   def test_get_column_names(self):
     config = {"columns": [{"src_col": "ref", "target_col": "id"}]}
-    result = build_column_mapping(config)
-    self.assertEqual(result, {"ref": "id"})
+    mapping, excluded = build_column_mapping(config)
+    self.assertEqual(mapping, {"ref": "id"})
+    self.assertEqual(excluded, [])
 
   def test_raises_on_no_columns(self):
     config = {"incorrect_key": []}
@@ -26,7 +31,6 @@ class PreProcessTest(unittest.TestCase):
 
     with self.assertRaises(InvalidConfigFormatError):
       build_column_mapping(config)
-
 
 class TestCleanDate(unittest.TestCase):
   def test_no_values(self):
@@ -54,6 +58,7 @@ class TestCleanDate(unittest.TestCase):
   def test_no_year_value(self):
     self.assertIsNone(clean_date("No year here"))
 
+class TestSensitiveDataRemoval(unittest.TestCase):
   def test_sensitive_data_removal(self):
     cutoff_date = "1945-01-01"
     sample_df = pd.DataFrame(
@@ -67,6 +72,8 @@ class TestCleanDate(unittest.TestCase):
           datetime.strptime("1980-01-01".strip(), "%Y-%m-%d").date(),
           None,
         ],
+        "year_death": ["1980", None],
+        "year_birth": ["1905", "1995"],
       }
     )
     date_cols = ["date_birth", "date_death"]
@@ -74,7 +81,7 @@ class TestCleanDate(unittest.TestCase):
     result = remove_sensitive_data(sample_df, cutoff_date, date_cols)
 
     # Only one row left, second row was removed as sensitive person.
-    self.assertTrue(result.shape == (1, 3))
+    self.assertTrue(result.shape == (1, 5))
 
     self.assertListEqual(
       result["date_birth"].tolist(),
@@ -85,3 +92,27 @@ class TestCleanDate(unittest.TestCase):
       result["date_death"].tolist(),
       [None],
     )
+
+    self.assertListEqual(
+      result["year_death"].tolist(),
+      [np.nan],
+    )
+
+
+class IntegrationTest(unittest.TestCase):
+  @patch("src.preprocess.write_data")
+  def test_contains_no_excluded_cols(self, write_data_mock):
+    config_path = "./config/dataset_config.yaml"
+    write_data_mock.return_value = None
+
+    with open(config_path, "r") as f:
+      data = f.read()
+      config = safe_load(data)
+
+    excluded_cols = [
+      x["target_col"] for x in config["columns"] if not x.get("include", True)
+    ]
+    result = run(config_path, "./data/SampleData.csv")
+    intersect = list(set(excluded_cols) & set(result.columns))
+
+    self.assertListEqual(intersect, [])

@@ -1,0 +1,261 @@
+# Columns containing location names which are used for geocoding.
+place_columns:
+  - birth_place
+  - death_place
+  - location_marriage_1
+  - location_marriage_2
+  - location_marriage_3
+  - location_marriage_4
+
+# Columns containing dates as strings that need to be converted to dates
+# and should not contain any sensitive values (specify via cutoff_date)
+date_columns:
+  - date_birth
+  - date_death
+  - date_marriage_1
+  - date_marriage_2
+  - date_marriage_3
+  - date_marriage_4
+
+# Date specifies which persons' data is to be considered PII (i.e. birth date after this date).
+# Persons born after this date will be removed from the data set.
+# Dates contained in `date_columns` will be nullified if they fall after this date.
+cutoff_date: 1945-01-01
+
+# Column mapping.
+columns:
+  - src_col: '#REFN'
+    target_col: id
+
+  - src_col: NAME
+    target_col: full_name
+
+  - src_col: FATH.NAME
+    target_col: father_name
+
+  - src_col: 'FATH.#REFN'
+    target_col: father_reference
+
+  - src_col: MOTH.NAME
+    target_col: mother_name
+
+  - src_col: 'MOTH.#REFN'
+    target_col: mother_reference
+
+  - src_col: _UID
+    target_col: uuid
+    include: False
+
+  - src_col: SURN
+    target_col: last_name
+
+  - src_col: GIVN
+    target_col: first_name
+
+  - src_col: SEX
+    target_col: gender
+    include: False
+
+  - src_col: BIRT.DATE
+    target_col: date_birth
+
+  - src_col: DEAT.DATE
+    target_col: date_death
+
+# Don't need those
+  - src_col: CHAN.DATE
+    target_col: date_changed
+    include: False
+
+  - src_col: CHAN.DATE.TIME
+    target_col: time_changed
+    include: False
+
+  - src_col: BIRT.PLAC
+    target_col: birth_place
+
+  - src_col: OCCU
+    target_col: occupation
+
+  - src_col: NOTE
+    target_col: note
+    include: False
+
+  - src_col: SOUR
+    target_col: source
+    include: False
+
+  - src_col: DEAT.PLAC
+    target_col: death_place
+
+  - src_col: NOTE.2
+    target_col: note_2
+    include: False
+
+  - src_col: SOUR.2
+    target_col: source_2
+    include: False
+
+  - src_col: _UID.2
+    target_col: id_2
+    include: False
+
+  # - src_col: _UID.3
+  #   target_col: id_3
+  #   include: False
+
+  - src_col: OCCU.NOTE
+    target_col: occupation_note
+    include: False
+
+  - src_col: MARR.SPOU.NAME.1
+    target_col: spouse_1_name
+
+  - src_col: MARR.SPOU.#REFN.1
+    target_col: spouse_1_reference
+
+  - src_col: FAM.HUSB.1
+    target_col: husband_1_family_reference
+
+  - src_col: FAM.WIFE.1
+    target_col: wife_1_family_reference
+
+  - src_col: MARR.DATE.1
+    target_col: date_marriage_1
+
+  - src_col: MARR.PLAC.1
+    target_col: location_marriage_1
+
+  - src_col: FAM.CHIL.1
+    target_col: child_1_family_reference
+
+# Don't know what this is
+
+  - src_col: FAM.MARR.1
+    target_col: fam_marr_1  # - some kind of boolean (Y/N/NaN)
+    include: False
+
+  - src_col: FAM._STAT.1
+    target_col: family_1_status  # i.e. ('NOT MARRIED', 'None') ???
+    include: False
+
+  - src_col: FAM._MARR.1
+    target_col: fam_marr_12  # - some kind of boolean (Y/N/NaN)
+    include: False
+
+  - src_col: MARR.SPOU.NAME.2
+    target_col: spouse_2_na
+
+  - src_col: MARR.SPOU.#REFN.2
+    target_col: spouse_2_reference
+
+  - src_col: FAM.HUSB.2
+    target_col: husband_2_family_reference
+    include: False
+
+  - src_col: FAM.WIFE.2
+    target_col: wife_2_family_reference
+    include: False
+
+  - src_col: MARR.DATE.2
+    target_col: date_marriage_2
+
+  - src_col: MARR.PLAC.2
+    target_col: location_marriage_2
+
+  - src_col: FAM.CHIL.2
+    target_col: child_2_family_reference
+    include: False
+
+  - src_col: FAM.MARR.2
+    target_col: fam_marr_2  # - some kind of boolean (Y/N/NaN)
+    include: False
+
+  - src_col: FAM._STAT.2
+    target_col: family_2_status  # i.e. ('NOT MARRIED', 'None') ???
+    include: False
+
+  - src_col: FAM._MARR.2
+    target_col: fam_marr_22  # - some kind of boolean (Y/N/NaN)
+    include: False
+
+  - src_col: MARR.SPOU.NAME.3
+    target_col: spouse_3_na
+
+  - src_col: MARR.SPOU.#REFN.3
+    target_col: 3 "spouse_3_reference
+
+  - src_col: FAM.HUSB.3
+    target_col: husband_3_family_reference
+    include: False
+
+  - src_col: FAM.WIFE.3
+    target_col: wife_3_family_reference
+    include: False
+
+  - src_col: MARR.DATE.3
+    target_col: date_marriage_3
+
+  - src_col: MARR.PLAC.3
+    target_col: location_marriage_3
+
+  - src_col: FAM.CHIL.3
+    target_col: child_3_family_reference
+    include: False
+
+  - src_col: FAM.MARR.3
+    target_col: fam_marr_3  # - some kind of boolean (Y/N/NaN)
+    include: False
+
+  - src_col: FAM._STAT.3
+    target_col: family_3_status  # i.e. ('NOT MARRIED', 'None') ???
+    include: False
+
+  - src_col: FAM._MARR.3
+    target_col: fam_marr_32  # - some kind of boolean (Y/N/NaN)
+    include: False
+
+  - src_col: MARR.SPOU.NAME.4
+    target_col: spouse_4_na
+
+  - src_col: MARR.SPOU.#REFN.4
+    target_col: 4 "spouse_4_reference
+
+  - src_col: FAM.HUSB.4
+    target_col: husband_4_family_reference
+    include: False
+
+  - src_col: FAM.WIFE.4
+    target_col: wife_4_family_reference
+    include: False
+
+  - src_col: MARR.DATE.4
+    target_col: date_marriage_4
+
+  - src_col: MARR.PLAC.4
+    target_col: location_marriage_4
+
+  - src_col: FAM.CHIL.4
+    target_col: child_4_family_reference
+    include: False
+
+  - src_col: FAM.MARR.4
+    target_col: fam_marr_4  # - some kind of boolean (Y/N/NaN)
+    include: False
+
+  - src_col: FAM._STAT.4
+    target_col: family_4_status  # i.e. ('NOT MARRIED', 'None') ???
+    include: False
+
+  - src_col: FAM._MARR.4
+    target_col: fam_marr_42  # - some kind of boolean (Y/N/NaN)
+    include: False
+
+#DON'T NEED THOSE
+  - src_col: OBJE.FILE.1
+    target_col: file_1
+    include: False
+
+  - src_col: OBJE.TITL.1
+    target_col: file_1_title
+    include: False
