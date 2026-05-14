@@ -12,6 +12,10 @@ This small project processes CSV based ancestry data and loads it into a Postgre
 It is intended for personal use only.
 
 
+**Run Command**
+`uv run task build_data -i ./data/SampleData.csv -c ./config/dataset_config.yaml -c ./assets/places_map.json`
+
+
 ## Where is this data coming from?
 The data is manually collected and managed by myself in the open source ancestry software Ahnenblatt.
 It is coming from some online sources (like ancestry.com, myheritage.com, genealogie-kiening.de) but the vast majority is collected from church records that are either publicly accessible (via Matricula) or from the archives.

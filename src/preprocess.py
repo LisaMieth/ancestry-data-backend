@@ -114,10 +114,10 @@ def clean_data(df: pd.DataFrame, date_cols: list) -> pd.DataFrame:
   return df
 
 
-def load_cached_places_map() -> dict:
+def load_cached_places_map(path: str) -> dict:
   # Load previously geocoded place map for faster data processing
   try:
-    with open("assets/places_map.json", "r") as f:
+    with open(path, "r") as f:
       places_map = json.load(f)
       return places_map
   except FileNotFoundError:
@@ -221,12 +221,13 @@ def write_data(df: pd.DataFrame) -> None:
   print("Preprocessed data and wrote to disk.")
 
 
-def run(config_path: str, data_file_path: str) -> pd.DataFrame:
+def run(config_path: str, data_file_path: str, places_map_path: str) -> pd.DataFrame:
   config = read_config(config_path)
   col_mapping, excluded = build_column_mapping(config)
   date_cols = safe_get(config, "date_columns")
   place_cols = safe_get(config, "place_columns")
   cutoff_date = safe_get(config, "cutoff_date")
+  places_map = load_cached_places_map(places_map_path)
 
   dtypes = {x: "string" for x in col_mapping.keys()}
 
@@ -245,8 +246,6 @@ def run(config_path: str, data_file_path: str) -> pd.DataFrame:
   # name_map = generate_last_name_lookup()
   # result = apply_map(result, norm_name, name_map)
 
-  places_map = load_cached_places_map()
-
   # Geocode location fields
   coder = Nominatim(user_agent="ancestry-geocoder")
 
@@ -259,7 +258,7 @@ def run(config_path: str, data_file_path: str) -> pd.DataFrame:
   write_data(df)
 
   # Save back potentially updated place map
-  with open("assets/places_map.json", "w") as f:
+  with open(places_map_path, "w") as f:
     json.dump(places_map, f, indent=2)
 
   return df
@@ -279,6 +278,12 @@ if __name__ == "__main__":
     required=True,
     help="Full path to config file.",
   )
+  parser.add_argument(
+    "-p",
+    dest="places_map_path",
+    required=True,
+    help="Full path to places map cache.",
+  )
   arg = parser.parse_args()
 
-  run(arg.config_path, arg.data_path)
+  run(arg.config_path, arg.data_path, arg.places_map_path)

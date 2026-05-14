@@ -202,6 +202,7 @@ class IntegrationTest(unittest.TestCase):
   @patch("src.preprocess.write_data")
   def test_contains_no_excluded_cols(self, write_data_mock):
     config_path = "./config/dataset_config.yaml"
+    places_map_path = "./tests/resources/places_map.json"
     write_data_mock.return_value = None
 
     with open(config_path, "r") as f:
@@ -211,7 +212,7 @@ class IntegrationTest(unittest.TestCase):
     excluded_cols = [
       x["target_col"] for x in config["columns"] if not x.get("include", True)
     ]
-    result = run(config_path, "./sample_data/SampleData.csv")
+    result = run(config_path, "./sample_data/SampleData.csv", places_map_path)
     intersect = list(set(excluded_cols) & set(result.columns))
 
     self.assertListEqual(intersect, [])
