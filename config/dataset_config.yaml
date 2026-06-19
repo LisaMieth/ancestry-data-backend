@@ -22,6 +22,12 @@ date_columns:
 # Dates contained in `date_columns` will be nullified if they fall after this date.
 cutoff_date: 1945-01-01
 
+relationship_columns:
+  - col: father_reference
+    type: father
+  - col: mother_reference
+    type: mother
+
 # Column mapping.
 columns:
   - src_col: '#REFN'
@@ -116,9 +122,11 @@ columns:
 
   - src_col: FAM.HUSB.1
     target_col: husband_1_family_reference
+    include: False
 
   - src_col: FAM.WIFE.1
     target_col: wife_1_family_reference
+    include: False
 
   - src_col: MARR.DATE.1
     target_col: date_marriage_1
@@ -128,14 +136,13 @@ columns:
 
   - src_col: FAM.CHIL.1
     target_col: child_1_family_reference
-
-# Don't know what this is
+    include: False
 
   - src_col: FAM.MARR.1
     target_col: fam_marr_1  # - some kind of boolean (Y/N/NaN)
     include: False
 
-  - src_col: FAM._STAT.1
+  - src_col: FAM._ST  AT.1
     target_col: family_1_status  # i.e. ('NOT MARRIED', 'None') ???
     include: False
 
@@ -144,7 +151,7 @@ columns:
     include: False
 
   - src_col: MARR.SPOU.NAME.2
-    target_col: spouse_2_na
+    target_col: spouse_2_name
 
   - src_col: MARR.SPOU.#REFN.2
     target_col: spouse_2_reference
@@ -180,10 +187,10 @@ columns:
     include: False
 
   - src_col: MARR.SPOU.NAME.3
-    target_col: spouse_3_na
+    target_col: spouse_3_name
 
   - src_col: MARR.SPOU.#REFN.3
-    target_col: 3 "spouse_3_reference
+    target_col: spouse_3_reference
 
   - src_col: FAM.HUSB.3
     target_col: husband_3_family_reference
@@ -216,10 +223,10 @@ columns:
     include: False
 
   - src_col: MARR.SPOU.NAME.4
-    target_col: spouse_4_na
+    target_col: spouse_4_name
 
   - src_col: MARR.SPOU.#REFN.4
-    target_col: 4 "spouse_4_reference
+    target_col: spouse_4_reference
 
   - src_col: FAM.HUSB.4
     target_col: husband_4_family_reference
@@ -251,7 +258,7 @@ columns:
     target_col: fam_marr_42  # - some kind of boolean (Y/N/NaN)
     include: False
 
-#DON'T NEED THOSE
+  #DON'T NEED THOSE
   - src_col: OBJE.FILE.1
     target_col: file_1
     include: False
