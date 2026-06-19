@@ -1,5 +1,13 @@
+# Editor + env files
 .vscode
-data
-.env
-assets/
+.DS_Store
 __pycache__
+.env
+.venv
+
+# Potentially sensitive data
+data/
+assets/
+config/last_name_*
+output/
+./resources/

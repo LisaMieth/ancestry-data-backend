@@ -114,8 +114,11 @@ def clean_data(df: pd.DataFrame, date_cols: list) -> pd.DataFrame:
   return df
 
 
-def load_cached_places_map(path: str) -> dict:
+def load_cached_places_map(path: str | None) -> dict:
   # Load previously geocoded place map for faster data processing
+  if path is None:
+    return {}
+
   try:
     with open(path, "r") as f:
       places_map = json.load(f)
@@ -215,23 +218,43 @@ def remove_sensitive_data(df: pd.DataFrame, cutoff_date, date_cols: list):
   return df
 
 
-def write_data(df: pd.DataFrame) -> None:
-  df.to_csv("./assets/results.csv", index=False)
+def build_relationship_dataset(df: pd.DataFrame, config: list) -> pd.DataFrame:
+  return pd.concat(
+    [
+      df[entry["col"]]
+      .rename("parent_id")
+      .to_frame()
+      .assign(type=entry["type"], **{"child_id": df["id"]})
+      for entry in config
+    ],
+    ignore_index=True,
+  )
+
+
+def write_data(df: pd.DataFrame, file_name) -> None:
+  df.to_csv(f"./output/{file_name}.csv", index=False)
 
   print("Preprocessed data and wrote to disk.")
 
 
-def run(config_path: str, data_file_path: str, places_map_path: str) -> pd.DataFrame:
+def run(
+  input_file_path: str,
+  config_path: str,
+  places_map_path: str | None,
+  lastname_map_path: str | None,
+) -> pd.DataFrame:
   config = read_config(config_path)
   col_mapping, excluded = build_column_mapping(config)
   date_cols = safe_get(config, "date_columns")
   place_cols = safe_get(config, "place_columns")
   cutoff_date = safe_get(config, "cutoff_date")
-  places_map = load_cached_places_map(places_map_path)
+  relationship_cols = safe_get(config, "relationship_columns")
+
+  places_map = load_cached_places_map(lastname_map_path)
 
   dtypes = {x: "string" for x in col_mapping.keys()}
 
-  df = read_data(data_file_path, col_mapping, dtypes, excluded)
+  df = read_data(input_file_path, col_mapping, dtypes, excluded)
 
   # Filter out any columns that don't exist in the data
   date_cols = [c for c in date_cols if c in df.columns]
@@ -254,10 +277,18 @@ def run(config_path: str, data_file_path: str, places_map_path: str) -> pd.DataF
   ).tolist()
 
   df = remove_sensitive_data(df, cutoff_date, date_cols)
+  pd.set_option("display.max_columns", None)
 
-  write_data(df)
+  relationship_data = build_relationship_dataset(df, relationship_cols)
+  person_data = df
+
+  write_data(relationship_data, "relationships")
+  write_data(person_data, "persons")
 
   # Save back potentially updated place map
+  places_map_path = (
+    places_map_path if places_map_path else "./config/last_name_map.json"
+  )
   with open(places_map_path, "w") as f:
     json.dump(places_map, f, indent=2)
 
@@ -268,22 +299,28 @@ if __name__ == "__main__":
   parser = ArgumentParser(description="Process data.")
   parser.add_argument(
     "-i",
-    dest="data_path",
+    dest="input_data",
     required=True,
-    help="Full path to data file.",
+    help="Full path to input data.",
   )
   parser.add_argument(
     "-c",
-    dest="config_path",
+    dest="dataset_config",
     required=True,
-    help="Full path to config file.",
+    help="Required YAML config file.",
   )
   parser.add_argument(
     "-p",
-    dest="places_map_path",
-    required=True,
-    help="Full path to places map cache.",
+    dest="places_map",
+    required=False,
+    help="Optional file for cached place name -> geolocation mapping. This cached file may be updated in place.",
+  )
+  parser.add_argument(
+    "-n",
+    dest="name_map",
+    required=False,
+    help="Optional file mapping last names to their normed versions.",
   )
   arg = parser.parse_args()
 
-  run(arg.config_path, arg.data_path, arg.places_map_path)
+  run(arg.input_data, arg.dataset_config, arg.places_map, arg.name_map)
