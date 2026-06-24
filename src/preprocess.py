@@ -1,5 +1,6 @@
 import json
 import re
+from pathlib import Path
 from time import sleep
 from datetime import datetime, date
 from yaml import safe_load
@@ -11,19 +12,21 @@ from geopy.location import Location
 from argparse import ArgumentParser
 
 
+ROOT_DIR = Path(__file__).parent.parent
+
+
 class InvalidConfigFormatError(Exception):
   def __init__(self, message: str):
     super().__init__(message)
     self.message = message
 
 
-def read_config(config_path: str) -> dict:
+def read_config(config_path: Path) -> dict:
   """Read provided YML config file into dictionary."""
-  with open(config_path, "r") as f:
-    data = f.read()
-    config = safe_load(data)
+  data = config_path.read_text()
+  config = safe_load(data)
 
-    return config
+  return config
 
 
 def safe_get(config: dict, key: str):
@@ -59,7 +62,7 @@ def build_column_mapping(config: dict) -> tuple[dict, list]:
   return mapping, excluded
 
 
-def read_data(file_name: str, mapping: dict, dtypes, excluded: list) -> pd.DataFrame:
+def read_data(file_name: Path, mapping: dict, dtypes, excluded: list) -> pd.DataFrame:
   """Read CSV file into dataframe."""
   df = pd.read_csv(
     file_name,
@@ -114,17 +117,22 @@ def clean_data(df: pd.DataFrame, date_cols: list) -> pd.DataFrame:
   return df
 
 
-def load_cached_places_map(path: str | None) -> dict:
-  # Load previously geocoded place map for faster data processing
+def load_optional_json_map(path: Path | None) -> dict:
+  """Load the optional JSON from the file path if given, otherwise return new cache"""
   if path is None:
     return {}
 
   try:
-    with open(path, "r") as f:
-      places_map = json.load(f)
-      return places_map
+    return json.loads(path.read_text())
   except FileNotFoundError:
     return {}
+
+
+def generate_last_name_lookup(mapping):
+  """Generate name lookup from variations mapping."""
+  norm_lookup = {x: key for key, vals in mapping.items() for x in vals}
+
+  return norm_lookup
 
 
 def generate_possibilities(value):
@@ -173,6 +181,7 @@ def lookup_location(
   place = row[cols].bfill().iloc[0]
   place = place.strip() if place is not None else place
   location = place_map.get(place, None)
+
   latitude, longitude = None, None
 
   if location:
@@ -192,6 +201,12 @@ def lookup_location(
       }
 
   return (place, latitude, longitude)
+
+
+def norm_last_name(row: pd.Series, mapping):
+  last_name = row["last_name"]
+
+  return mapping.get(last_name) or last_name
 
 
 def remove_sensitive_data(df: pd.DataFrame, cutoff_date, date_cols: list):
@@ -232,17 +247,19 @@ def build_relationship_dataset(df: pd.DataFrame, config: list) -> pd.DataFrame:
 
 
 def write_data(df: pd.DataFrame, file_name) -> None:
-  df.to_csv(f"./output/{file_name}.csv", index=False)
+  output_path = ROOT_DIR / "output" / f"{file_name}.csv"
+  output_path.parent.mkdir(parents=True, exist_ok=True)
+  df.to_csv(output_path, index=False)
 
   print("Preprocessed data and wrote to disk.")
 
 
 def run(
-  input_file_path: str,
-  config_path: str,
-  places_map_path: str | None,
-  lastname_map_path: str | None,
-) -> pd.DataFrame:
+  input_file_path: Path,
+  config_path: Path,
+  places_map_path: Path | None,
+  lastname_map_path: Path | None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
   config = read_config(config_path)
   col_mapping, excluded = build_column_mapping(config)
   date_cols = safe_get(config, "date_columns")
@@ -250,7 +267,7 @@ def run(
   cutoff_date = safe_get(config, "cutoff_date")
   relationship_cols = safe_get(config, "relationship_columns")
 
-  places_map = load_cached_places_map(lastname_map_path)
+  places_map = load_optional_json_map(places_map_path)
 
   dtypes = {x: "string" for x in col_mapping.keys()}
 
@@ -262,12 +279,11 @@ def run(
 
   df = clean_data(df, date_cols)
 
-  # TODO: Skip the normalisation and handle via SQL
-  #   -> find the latest occurance of a last name
-  #   -> walk down the tree from there & assign any following person the last_name_normed from the latest name
+  # TODO: Refactor this to depend on the family branch
   # Normalize last names
-  # name_map = generate_last_name_lookup()
-  # result = apply_map(result, norm_name, name_map)
+  name_map = load_optional_json_map(lastname_map_path)
+  name_mapping = generate_last_name_lookup(name_map)
+  df["last_name_normed"] = df.apply(norm_last_name, args=(name_mapping,), axis=1)
 
   # Geocode location fields
   coder = Nominatim(user_agent="ancestry-geocoder")
@@ -285,14 +301,15 @@ def run(
   write_data(relationship_data, "relationships")
   write_data(person_data, "persons")
 
-  # Save back potentially updated place map
+  # Save back potentially updated place map into assets folder
   places_map_path = (
-    places_map_path if places_map_path else "./config/last_name_map.json"
+    places_map_path if places_map_path else ROOT_DIR / "assets" / "places_map.json"
   )
+
   with open(places_map_path, "w") as f:
     json.dump(places_map, f, indent=2)
 
-  return df
+  return (person_data, relationship_data)
 
 
 if __name__ == "__main__":
@@ -323,4 +340,9 @@ if __name__ == "__main__":
   )
   arg = parser.parse_args()
 
-  run(arg.input_data, arg.dataset_config, arg.places_map, arg.name_map)
+  run(
+    Path(arg.input_data),
+    Path(arg.dataset_config),
+    Path(arg.places_map) if arg.places_map else None,
+    Path(arg.name_map) if arg.name_map else None,
+  )

@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 from unittest.mock import patch, Mock
 import pandas as pd
 import numpy as np
@@ -201,8 +202,8 @@ class TestLocationLookup(unittest.TestCase):
 class IntegrationTest(unittest.TestCase):
   @patch("src.preprocess.write_data")
   def test_contains_no_excluded_cols(self, write_data_mock):
-    config_path = "./config/dataset_config.yaml"
-    places_map_path = "./tests/resources/places_map.json"
+    config_path = Path("./config/dataset_config.yaml")
+    places_map_path = Path("./tests/resources/places_map.json")
     write_data_mock.return_value = None
 
     with open(config_path, "r") as f:
@@ -212,7 +213,40 @@ class IntegrationTest(unittest.TestCase):
     excluded_cols = [
       x["target_col"] for x in config["columns"] if not x.get("include", True)
     ]
-    result = run("./sample_data/SampleData.csv", config_path, places_map_path, None)
-    intersect = list(set(excluded_cols) & set(result.columns))
+    persons, _ = run(
+      Path("./sample_data/SampleData.csv"), config_path, places_map_path, None
+    )
+    intersect = list(set(excluded_cols) & set(persons.columns))
 
     self.assertListEqual(intersect, [])
+
+  @patch("src.preprocess.write_data")
+  def test_output_shape(self, write_data_mock):
+    config_path = Path("./config/dataset_config.yaml")
+    places_map_path = Path("./tests/resources/places_map.json")
+    last_name_map_path = Path("./tests/resources/last_name_map.json")
+
+    write_data_mock.return_value = None
+
+    persons, relationships = run(
+      Path("./sample_data/SampleData.csv"),
+      config_path,
+      places_map_path,
+      last_name_map_path,
+    )
+
+    expected_person_cols = [
+      "father_name",
+      "mother_name",
+      "last_name_normed",
+      "year_birth",
+      "year_death",
+      "place",
+      "latitude",
+      "longitude",
+    ]
+
+    self.assertTrue(set(persons.columns).issuperset(set(expected_person_cols)))
+    self.assertTrue(
+      set(relationships.columns).issuperset(set(["parent_id", "child_id", "type"]))
+    )
