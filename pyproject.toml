@@ -22,5 +22,6 @@ indent-width = 2
 [tool.taskipy.tasks]
 test =  "python -m unittest tests/*.py"
 lint = "ruff format src tests --config pyproject.toml"
+build_sample_data = "python src/preprocess.py -i ./sample_data/SampleData.csv -c ./config/dataset_config.yaml -p ./config/sample_place_map.json -n ./config/sample_last_name_map.json"
 build_data = "python src/preprocess.py"
 build_db = "python src/db_load.py"
