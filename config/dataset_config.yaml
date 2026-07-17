@@ -1,3 +1,8 @@
+# Root node in the family tree used to calculate the direct lineage and exlcude any sideline ancestors 
+# (siblings, parents' siblings, non-ancestrial spouses).
+# This usually would be yourself.
+root_node: Melanie Maier
+
 # Columns containing location names which are used for geocoding.
 place_columns:
   - birth_place
