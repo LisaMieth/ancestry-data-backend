@@ -1,0 +1,36 @@
+name: test-duckpgq-install
+
+on:
+  workflow_dispatch:
+
+jobs:
+  try-duckpgq:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install duckdb
+        run: uv pip install --system duckdb
+
+      - name: Try installing duckpgq from community
+        run: |
+          uv run python -c "
+          import duckdb
+
+          con = duckdb.connect(config={"allow_unsigned_extensions": "true"})
+          print('DuckDB version:', duckdb.__version__)
+
+          con.install_extension('duckpgq', repository='community')
+          con.load_extension('duckpgq')
+
+          result = con.sql(\"SELECT 'duckpgq loaded ok'\").fetchone()
+          print(result[0])
+          "
