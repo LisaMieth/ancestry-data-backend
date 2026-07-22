@@ -1,11 +1,13 @@
 import unittest
 import duckdb
+from pathlib import Path
 
+ROOT_DIR = Path(__file__).parent.parent
 
 class TestDBViews(unittest.TestCase):
   def setUp(self) -> None:
     con = duckdb.connect(
-      "./resources/sample.db", config={"allow_unsigned_extensions": "true"}
+      ROOT_DIR / "resources/sample.db", config={"allow_unsigned_extensions": "true"}
     )
     con.execute("LOAD duckpgq;")
 
