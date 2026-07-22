@@ -1,8 +1,6 @@
 import unittest
 import duckdb
 
-from src.queries import family_branch
-
 
 class TestDBViews(unittest.TestCase):
   def setUp(self) -> None:
@@ -12,15 +10,6 @@ class TestDBViews(unittest.TestCase):
     con.execute("LOAD duckpgq;")
 
     self.con = con
-
-  # def test_distinct_families(self):
-  #     sql = open("src/sql/distinct_families.sql").read()
-  #     result = self.con.sql(sql).df()
-
-  #     self.assertListEqual(
-  #         result["family_name"].to_list(),
-  #         ["Maier", "Huber", "Schmidt", "Kratzer"]
-  #     )
 
   def test_persons_in_linage(self):
     df = self.con.sql("SELECT * FROM person").to_df()
@@ -60,15 +49,3 @@ class TestDBViews(unittest.TestCase):
     self.assertEqual(df.loc[df["last_name_normed"] == "Schmidt"]["cnt"].item(), 1)
     # Assert that two distinct branches of "Maier" have different IDs
     self.assertEqual(df.loc[df["last_name_normed"] == "Maier"]["cnt"].item(), 2)
-
-  # def test_family_branch_view(self):
-  #     result = family_branch(self.con, "Maier")
-  #     print(result)
-  #     self.assertEqual(result.loc[0, "root_id"], "@I8@")
-  #     self.assertEqual(result.loc[0, "root_full_name"], "Tobias Maier")
-
-  #     ancestor_ids = {a["id"] for a in result.loc[0, "ancestors"]}
-  #     self.assertSetEqual(
-  #         ancestor_ids,
-  #         {"@I2@", "@I3@", "@I4@", "@I5@", "@I6@", "@I7@", "@I11@", "@I12@"},
-  #     )
