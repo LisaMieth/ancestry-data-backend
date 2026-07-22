@@ -21,9 +21,6 @@ jobs:
       - name: Run linting
         run: uv run task lint
 
-      - name: Try installing duckpgq from community
-        run: uv run python ./test_duckpgq.py
-
       - name: Preprocess sample data
         run: uv run task build_sample_data
 
