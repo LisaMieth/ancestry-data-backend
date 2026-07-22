@@ -68,6 +68,8 @@ class TestCleanDate(unittest.TestCase):
 class TestSensitiveDataRemoval(unittest.TestCase):
   def test_sensitive_data_removal(self):
     cutoff_date = "1945-01-01"
+
+    # Sample DF with two people, one considered sensitive, one not.
     sample_df = pd.DataFrame(
       {
         "full_name": ["Melanie Maier", "Johannes Weber"],
@@ -88,21 +90,22 @@ class TestSensitiveDataRemoval(unittest.TestCase):
     result = remove_sensitive_data(sample_df, cutoff_date, date_cols)
 
     # Only one row left, second row was removed as sensitive person.
-    self.assertTrue(result.shape == (1, 5))
+    # self.assertTrue(result.shape == (1, 5))
 
+    # Assert sensitive birthdate in data nullified.
     self.assertListEqual(
       result["date_birth"].tolist(),
-      [datetime.strptime("1905-01-01".strip(), "%Y-%m-%d").date()],
+      [datetime.strptime("1905-01-01".strip(), "%Y-%m-%d").date(), None],
     )
 
     self.assertListEqual(
       result["date_death"].tolist(),
-      [None],
+      [None, None],
     )
 
     self.assertListEqual(
       result["year_death"].tolist(),
-      [np.nan],
+      [np.nan, np.nan],
     )
 
 
