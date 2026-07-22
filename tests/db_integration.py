@@ -4,6 +4,7 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).parent.parent
 
+
 class TestDBViews(unittest.TestCase):
   def setUp(self) -> None:
     con = duckdb.connect(
