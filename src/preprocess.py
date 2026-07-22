@@ -211,12 +211,13 @@ def norm_last_name(row: pd.Series, mapping):
 
 def remove_sensitive_data(df: pd.DataFrame, cutoff_date, date_cols: list):
   """Remove any rows with date_birth after the cutoff and nullify values after cuttoff."""
-  # Remove persons born after cut-off date
   cutoff = cutoff_date
   if type(cutoff_date) == str:
     cutoff = datetime.strptime(cutoff_date, "%Y-%m-%d").date()
 
-  df = df[~df["date_birth"].gt(cutoff)]
+  # TODO: Clarify if this is really desired!
+  # Remove persons born after cut-off date
+  # df = df[~df["date_birth"].gt(cutoff)]
 
   # Remove any sensitive dates
   df[date_cols] = df[date_cols].where(df[date_cols] <= cutoff, other=None)

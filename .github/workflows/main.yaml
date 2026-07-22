@@ -21,5 +21,11 @@ jobs:
       - name: Run linting
         run: uv run task lint
 
+      - name: Preprocess sample data
+        run: uv run task build_sample_data
+
+      - name: Build sample DB
+        run: uv run task build_sample_db
+
       - name: Run tests
         run: uv run task test
