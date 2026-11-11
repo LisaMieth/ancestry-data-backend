@@ -21,8 +21,8 @@ def read_config(config_path: Path) -> dict:
   return config
 
 
-def get_table_contracts(config: dict) -> dict[str, list[str]]:
-  """Validate and extract the table -> approved columns mapping."""
+def get_table_contracts(config: dict) -> dict[str, dict]:
+  """Validate and extract the table -> {schema, columns} mapping."""
   tables = config.get("tables")
 
   if not tables:
@@ -31,41 +31,53 @@ def get_table_contracts(config: dict) -> dict[str, list[str]]:
   contracts = {}
 
   for table_name, spec in tables.items():
-    columns = (spec or {}).get("columns")
+    spec = spec or {}
+    columns = spec.get("columns")
+    schema = spec.get("schema")
 
     if not columns:
       raise InvalidPublicConfigError(
         f"Table `{table_name}` must specify a non-empty `columns` list."
       )
 
-    contracts[table_name] = columns
+    if not schema:
+      raise InvalidPublicConfigError(
+        f"Table `{table_name}` must specify a source `schema` (bronze/silver/gold)."
+      )
+
+    contracts[table_name] = {"schema": schema, "columns": columns}
 
   return contracts
 
 
-def validate_columns(con, table_name: str, columns: list[str]) -> None:
+def validate_columns(con, qualified_table: str, columns: list[str]) -> None:
   """Raise if a configured column doesn't exist in the source table."""
-  existing = {row[0] for row in con.execute(f"DESCRIBE src.{table_name};").fetchall()}
+  existing = {row[0] for row in con.execute(f"DESCRIBE {qualified_table};").fetchall()}
   missing = [c for c in columns if c not in existing]
 
   if missing:
     raise InvalidPublicConfigError(
-      f"Columns {missing} configured for `{table_name}` do not exist in the source table."
+      f"Columns {missing} configured for `{qualified_table}` do not exist in the source table."
     )
 
 
 def persist_public_db(src_db_file: Path, public_db_file: Path, config: dict) -> None:
   public_db_file.parent.mkdir(parents=True, exist_ok=True)
+  # Rebuild from scratch each time -- otherwise a table dropped from the
+  # interface contract would stick around as an orphan from a prior build.
+  public_db_file.unlink(missing_ok=True)
   table_contracts = get_table_contracts(config)
 
   con = duckdb.connect(public_db_file)
   con.execute(f"ATTACH '{src_db_file}' AS src (READ_ONLY);")
 
-  for table_name, columns in table_contracts.items():
-    validate_columns(con, table_name, columns)
+  for table_name, contract in table_contracts.items():
+    qualified_table = f"src.{contract['schema']}.{table_name}"
+    columns = contract["columns"]
+    validate_columns(con, qualified_table, columns)
     column_list = ", ".join(columns)
     con.execute(
-      f"CREATE OR REPLACE TABLE {table_name} AS SELECT {column_list} FROM src.{table_name};"
+      f"CREATE OR REPLACE TABLE {table_name} AS SELECT {column_list} FROM {qualified_table};"
     )
 
   con.execute("DETACH src;")

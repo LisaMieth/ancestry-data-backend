@@ -36,43 +36,63 @@ def get_root_node(config: dict) -> str:
 
 def persist_db(src_persons_file, src_relationships_file, db_file, config):
   db_file.parent.mkdir(parents=True, exist_ok=True)
+  # Rebuild from scratch each time -- otherwise objects from a prior schema
+  # layout (e.g. pre-bronze/silver/gold tables in `main`) would stick around.
+  db_file.unlink(missing_ok=True)
   con = duckdb.connect(db_file, config={"allow_unsigned_extensions": "true"})
   con.execute("INSTALL duckpgq FROM community;")
-  con.execute("INSTALL spatial;")
   con.execute("LOAD duckpgq;")
-  con.execute("LOAD spatial;")
+  # TODO: spatial extension install temporarily removed -- sandbox network
+  # policy blocks extensions.duckdb.org. Re-add once that's allowed:
+  # con.execute("INSTALL spatial;")
+  # con.execute("LOAD spatial;")
+
+  con.execute("CREATE SCHEMA IF NOT EXISTS bronze;")
+  con.execute("CREATE SCHEMA IF NOT EXISTS silver;")
+  con.execute("CREATE SCHEMA IF NOT EXISTS gold;")
 
   con.execute(
-    f"CREATE OR REPLACE TABLE person_raw AS SELECT * FROM read_csv_auto('{src_persons_file}');"
+    f"CREATE OR REPLACE TABLE bronze.person_raw AS SELECT * FROM read_csv_auto('{src_persons_file}');"
   )
   con.execute(
-    f"CREATE OR REPLACE TABLE relationship_raw AS SELECT * FROM read_csv_auto('{src_relationships_file}') WHERE parent_id IS NOT NULL;"
+    f"CREATE OR REPLACE TABLE bronze.relationship_raw AS SELECT * FROM read_csv_auto('{src_relationships_file}') WHERE parent_id IS NOT NULL;"
   )
 
   con.execute("""
-    CREATE OR REPLACE PROPERTY GRAPH family_tree
-    VERTEX TABLES (person_raw LABEL person)
+    CREATE OR REPLACE PROPERTY GRAPH silver.family_tree
+    VERTEX TABLES (bronze.person_raw LABEL person)
     EDGE TABLES (
-      relationship_raw
-        SOURCE KEY (child_id) REFERENCES person_raw (id)
-        DESTINATION KEY (parent_id) REFERENCES person_raw (id)
+      bronze.relationship_raw
+        SOURCE KEY (child_id) REFERENCES bronze.person_raw (id)
+        DESTINATION KEY (parent_id) REFERENCES bronze.person_raw (id)
         LABEL rel
     );
   """)
 
   root_node = get_root_node(config)
 
-  # Build lineage view
+  # duckpgq's GRAPH_TABLE(...) does not accept a schema-qualified graph name
+  # (e.g. `GRAPH_TABLE(silver.family_tree ...)` fails to parse), so queries
+  # referencing `family_tree` must have `silver` as their current schema.
+  # Every other table reference in these SQL files is fully schema-qualified
+  # regardless of current schema, so this only governs resolution of the bare
+  # `family_tree` name.
+  con.execute("USE silver;")
+
+  # Build silver layer tables.
   lineage_query = get_formatted_query(
     SQL_DIR / "person_lineage.sql", {"root_node": root_node}
   )
   con.execute(lineage_query)
 
-  # Build last name dimension
+  # Build Gold layer tables. fct_family_branch.sql also queries `family_tree`
+  # via GRAPH_TABLE, hence `USE silver` above still applies.
+  dim_person_query = get_formatted_query(SQL_DIR / "dim_person.sql")
+  con.execute(dim_person_query)
+
   dim_last_name_query = get_formatted_query(SQL_DIR / "dim_last_name.sql")
   con.execute(dim_last_name_query)
 
-  # Build family branches
   fct_family_branches_query = get_formatted_query(SQL_DIR / "fct_family_branch.sql")
   con.execute(fct_family_branches_query)
 
