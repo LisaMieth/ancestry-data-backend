@@ -28,7 +28,7 @@ jobs:
         run: uv run task build_sample_db
 
       - name: Build sample public DB
-        run: uv run task build_sample_public_db
+        run: uv run task build_public_sample_db
 
       - name: Run tests
         run: uv run task test
