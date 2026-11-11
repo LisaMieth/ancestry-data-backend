@@ -39,6 +39,7 @@ def persist_db(src_persons_file, src_relationships_file, db_file, config):
   con = duckdb.connect(db_file, config={"allow_unsigned_extensions": "true"})
   con.execute("INSTALL duckpgq FROM community;")
   con.execute("LOAD duckpgq;")
+  con.execute("LOAD spatial;")
 
   con.execute(
     f"CREATE OR REPLACE TABLE person_raw AS SELECT * FROM read_csv_auto('{src_persons_file}');"
@@ -69,6 +70,10 @@ def persist_db(src_persons_file, src_relationships_file, db_file, config):
   # Build last name dimension
   dim_last_name_query = get_formatted_query(SQL_DIR / "dim_last_name.sql")
   con.execute(dim_last_name_query)
+
+  # Build family branches
+  fct_family_branches_query = get_formatted_query(SQL_DIR / "fct_family_branch.sql")
+  con.execute(fct_family_branches_query)
 
   con.close()
 
