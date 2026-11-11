@@ -1,0 +1,36 @@
+# Interface contract for the public-facing DB (see src/build_public_db.py).
+# Only tables and columns listed here are copied from the main DB into the
+# public DB. Raw tables (person_raw, relationship_raw) and the family_tree
+# property graph are never exposed, regardless of what's listed here.
+tables:
+  person:
+    columns:
+      - id
+      - full_name
+      - last_name_normed
+      - last_name_id
+      - in_lineage
+      - year_birth
+      - year_death
+      - place
+      - latitude
+      - longitude
+
+  dim_last_name:
+    columns:
+      - id
+      - last_name_normed
+
+  fct_family_branch:
+    columns:
+      - root_id
+      - root_full_name
+      - last_name_id
+      - root_location
+      - root_date_ref
+      - ancestor_id
+      - ancestor_full_name
+      - ancestor_location_name
+      - ancestor_geolocation
+      - ancestor_date_ref
+      - ancestor_hops

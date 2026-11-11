@@ -52,3 +52,28 @@ class TestDBViews(unittest.TestCase):
     self.assertEqual(df.loc[df["last_name_normed"] == "Schmidt"]["cnt"].item(), 1)
     # Assert that two distinct branches of "Maier" have different IDs
     self.assertEqual(df.loc[df["last_name_normed"] == "Maier"]["cnt"].item(), 2)
+
+  def test_family_branches_roots(self):
+    df = self.con.sql(
+      "SELECT root_full_name, ancestor_full_name FROM fct_family_branch"
+    ).to_df()
+
+    # Assert all root nodes appear
+    self.assertSetEqual(
+      set(df["root_full_name"].unique().tolist()),
+      {
+        "Melanie Maier",
+        "Sabine Huber",
+        "Brigitte Kratzer",
+        "Margarethe Schmidt",
+        "Kreszenz Maier",
+      },
+    )
+
+  def test_family_branches_ancestors(self):
+    df = self.con.sql(
+      "SELECT root_full_name, COUNT(*) AS cnt FROM fct_family_branch GROUP BY root_full_name"
+    ).to_df()
+
+    # Assert all 9 ancestors appear for this root node.
+    self.assertEqual(df.loc[df["root_full_name"] == "Melanie Maier"]["cnt"].item(), 9)
