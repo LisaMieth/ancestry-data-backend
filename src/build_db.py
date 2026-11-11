@@ -38,6 +38,7 @@ def persist_db(src_persons_file, src_relationships_file, db_file, config):
   db_file.parent.mkdir(parents=True, exist_ok=True)
   con = duckdb.connect(db_file, config={"allow_unsigned_extensions": "true"})
   con.execute("INSTALL duckpgq FROM community;")
+  con.execute("INSTALL spatial;")
   con.execute("LOAD duckpgq;")
   con.execute("LOAD spatial;")
 
