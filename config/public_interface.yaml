@@ -1,9 +1,9 @@
 # Interface contract for the public-facing DB (see src/build_public_db.py).
-# Only tables and columns listed here are copied from the main DB into the
-# public DB. Raw tables (person_raw, relationship_raw) and the family_tree
-# property graph are never exposed, regardless of what's listed here.
+# All tables & columns listed here are exposed in the public DB build, all others are excluded.
+
 tables:
-  person:
+  dim_person:
+    schema: gold
     columns:
       - id
       - full_name
@@ -17,11 +17,13 @@ tables:
       - longitude
 
   dim_last_name:
+    schema: gold
     columns:
       - id
       - last_name_normed
 
   fct_family_branch:
+    schema: gold
     columns:
       - root_id
       - root_full_name

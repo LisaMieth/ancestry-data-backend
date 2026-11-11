@@ -14,10 +14,14 @@
 -- GRAPH_TABLE, so {root_node} must be substituted by the caller.
 -- NOTE: GRAPH_TABLE must be the entire body of its own CTE -- joining it
 -- inline (e.g. `JOIN GRAPH_TABLE(...) AS x ON TRUE`) fails to parse.
-CREATE OR REPLACE TABLE person AS
+-- NOTE: table refs below are schema-qualified except `family_tree`, which
+-- duckpgq's GRAPH_TABLE(...) cannot accept qualified (e.g.
+-- `GRAPH_TABLE(silver.family_tree ...)` fails to parse) -- the caller runs
+-- `USE silver;` first so the bare name resolves there.
+CREATE OR REPLACE TABLE silver.person AS
 WITH RECURSIVE
 root AS (
-  SELECT id FROM person_raw WHERE full_name = '{root_node}'
+  SELECT id FROM bronze.person_raw WHERE full_name = '{root_node}'
 ),
 ancestors AS (
   FROM GRAPH_TABLE (family_tree
@@ -31,16 +35,16 @@ ancestors AS (
 -- coincidence.
 same_surname_edges AS (
   SELECT r.child_id, r.parent_id
-  FROM relationship_raw r
-  JOIN person_raw child ON child.id = r.child_id
-  JOIN person_raw parent ON parent.id = r.parent_id
+  FROM bronze.relationship_raw r
+  JOIN bronze.person_raw child ON child.id = r.child_id
+  JOIN bronze.person_raw parent ON parent.id = r.parent_id
   WHERE parent.last_name_normed = child.last_name_normed
 ),
 -- For every person, walk up same_surname_edges to the topmost ancestor of
 -- their unbroken same-surname chain -- that ancestor's id anchors the branch.
 branch_anchor AS (
   SELECT p.id AS id, p.id AS anchor_id
-  FROM person_raw p
+  FROM bronze.person_raw p
   WHERE p.id NOT IN (SELECT child_id FROM same_surname_edges)
 
   UNION ALL
@@ -58,6 +62,6 @@ SELECT
   person_raw.*,
   person_raw.id IN (SELECT id FROM root) OR person_raw.id IN (SELECT id FROM ancestors) AS in_lineage,
   branch_ids.last_name_id AS last_name_id
-FROM person_raw
+FROM bronze.person_raw AS person_raw
 JOIN branch_anchor ON branch_anchor.id = person_raw.id
 JOIN branch_ids ON branch_ids.anchor_id = branch_anchor.anchor_id;

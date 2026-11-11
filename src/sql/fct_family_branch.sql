@@ -8,12 +8,15 @@
 --
 -- NOTE: GRAPH_TABLE must be the entire body of its own CTE -- joining it
 -- inline (e.g. `JOIN GRAPH_TABLE(...) AS x ON TRUE`) fails to parse.
-CREATE OR REPLACE TABLE fct_family_branch AS
+-- NOTE: table refs below are schema-qualified except `family_tree`, which
+-- duckpgq's GRAPH_TABLE(...) cannot accept qualified -- the caller runs
+-- `USE silver;` first so the bare name resolves there.
+CREATE OR REPLACE TABLE gold.fct_family_branch AS
 WITH within_branch_parents AS (
   SELECT DISTINCT r.parent_id, parent.last_name_id
-  FROM relationship_raw r
-  JOIN person parent ON parent.id = r.parent_id
-  JOIN person child ON child.id = r.child_id
+  FROM bronze.relationship_raw r
+  JOIN silver.person parent ON parent.id = r.parent_id
+  JOIN silver.person child ON child.id = r.child_id
   WHERE parent.last_name_id = child.last_name_id
 ),
 roots AS (
@@ -23,7 +26,7 @@ roots AS (
       PARTITION BY last_name_id
       ORDER BY date_birth DESC NULLS LAST
     ) AS rn
-  FROM person
+  FROM silver.person
   WHERE in_lineage
     AND id NOT IN (SELECT parent_id FROM within_branch_parents)
 ),
